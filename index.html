@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>串珠文字图纸生成工具</title>
+<meta name="description" content="上传串珠帘图纸，自动识别网格与配色，逐列生成可照着穿的文字图纸。图片全部在浏览器本地处理，不上传服务器。">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">串珠<span class="hi">文字</span>图纸生成工具</span>
+    <span class="brand-sub">上传图纸，逐列读出穿珠顺序与用量</span>
+  </div>
+  <div class="topbar-right">
+    <span class="stamp" title="图片不会离开你的设备">图片全部在本地处理</span>
+    <button type="button" class="icon-btn" id="themeBtn" title="切换深浅主题">◐</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ================= 左：图纸 ================= -->
+  <section class="col col-canvas">
+    <div class="sec-hd">
+      <span class="sec-no">01</span>
+      <h2>图纸</h2>
+      <div class="sec-hd-actions">
+        <button type="button" class="btn btn-ghost" id="demoBtn">用示例图纸</button>
+        <button type="button" class="btn btn-secondary" id="pickBtn2">选择图片</button>
+      </div>
+    </div>
+
+    <div class="drop" id="drop">
+      <div class="drop-inner">
+        <strong>把图纸拖进来</strong>
+        <p>支持 PNG / JPG / WebP，也可以直接 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴。<br>
+           适合方格清晰、每格一色的串珠帘图纸。</p>
+        <button type="button" class="btn btn-primary" id="pickBtn">选择图片</button>
+      </div>
+    </div>
+
+    <div class="stage" id="stage" hidden>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab on" data-view="result" role="tab">识别结果</button>
+        <button type="button" class="tab" data-view="raw" role="tab">原图 + 网格</button>
+      </div>
+
+      <div class="viewport" id="viewport">
+        <div class="vp-pane" id="paneResult">
+          <canvas id="resultCanvas"></canvas>
+        </div>
+        <div class="vp-pane" id="paneRaw" hidden>
+          <div class="raw-wrap" id="rawWrap">
+            <img id="rawImg" alt="图纸原图">
+            <canvas id="gridCanvas" class="grid-overlay"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage-bar">
+        <div class="stage-stats" id="stageStats"></div>
+        <div class="zoom">
+          <label for="zoom">格子大小</label>
+          <input type="range" id="zoom" min="3" max="26" step="1" value="10">
+          <output id="zoomOut" class="mono">10px</output>
+        </div>
+      </div>
+
+      <div class="probe" id="probe">把鼠标移到格子上可查看行列与颜色；点击某格可锁定该列。</div>
+    </div>
+  </section>
+
+  <!-- ================= 右：参数 ================= -->
+  <section class="col col-side">
+    <div class="sec-hd">
+      <span class="sec-no">02</span>
+      <h2>网格参数</h2>
+      <div class="sec-hd-actions">
+        <button type="button" class="btn btn-ghost" id="autoBtn" title="重新自动识别网格">自动识别</button>
+      </div>
+    </div>
+
+    <div class="pad grid-2">
+      <div class="field">
+        <label for="cols">列数（横向格数）</label>
+        <div class="stepper">
+          <button type="button" data-step="cols" data-d="-1" aria-label="减少列数">−</button>
+          <input type="number" id="cols" min="1" max="600" value="100">
+          <button type="button" data-step="cols" data-d="1" aria-label="增加列数">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="rows">行数（纵向格数）</label>
+        <div class="stepper">
+          <button type="button" data-step="rows" data-d="-1" aria-label="减少行数">−</button>
+          <input type="number" id="rows" min="1" max="600" value="77">
+          <button type="button" data-step="rows" data-d="1" aria-label="增加行数">+</button>
+        </div>
+      </div>
+    </div>
+
+    <details class="crop">
+      <summary>裁边微调（图纸四周有留白时使用）</summary>
+      <div class="grid-4">
+        <div class="field mini"><label for="cropT">上</label><input type="number" id="cropT" value="0" step="1"></div>
+        <div class="field mini"><label for="cropR">右</label><input type="number" id="cropR" value="0" step="1"></div>
+        <div class="field mini"><label for="cropB">下</label><input type="number" id="cropB" value="0" step="1"></div>
+        <div class="field mini"><label for="cropL">左</label><input type="number" id="cropL" value="0" step="1"></div>
+      </div>
+      <p class="hint">单位为原图像素。切到「原图 + 网格」标签，红线对齐格线即为正确。</p>
+    </details>
+
+    <div class="pad">
+      <div class="range-hd">
+        <label for="thresh">相近色合并强度</label>
+        <output id="threshOut" class="mono">12</output>
+      </div>
+      <input type="range" id="thresh" min="3" max="45" step="1" value="12">
+      <p class="hint">数值越大颜色种类越少。识别出的颜色比实际珠子多时往右拖。</p>
+
+      <label class="check k-check">
+        <input type="checkbox" id="fixK">
+        <span>固定颜色数量</span>
+        <input type="number" id="kNum" min="2" max="64" value="12" class="k-input" disabled>
+      </label>
+      <label class="check k-check">
+        <span>并入少于</span>
+        <input type="number" id="minCount" min="1" max="99" value="3" class="k-input">
+        <span>颗的杂色</span>
+      </label>
+      <p class="hint">图案边缘的过渡格常被单独当成一种颜色，并掉更好读。填 1 表示不处理。</p>
+    </div>
+
+    <div class="sec-hd">
+      <span class="sec-no">03</span>
+      <h2>色卡命名</h2>
+      <div class="sec-hd-actions">
+        <button type="button" class="btn btn-ghost" id="mergeBtn" disabled>合并所选</button>
+      </div>
+    </div>
+
+    <div class="palette" id="palette"></div>
+    <p class="hint pad-x" id="paletteHint">改名后文字图纸实时更新；勾选两个及以上色块可合并为同一种珠子。</p>
+
+    <div class="sec-hd">
+      <span class="sec-no">04</span>
+      <h2>输出选项</h2>
+    </div>
+    <div class="pad opts">
+      <div class="field">
+        <label for="colDir">列的编号方向</label>
+        <select id="colDir">
+          <option value="ltr">从左到右（第 1 列在最左）</option>
+          <option value="rtl">从右到左（第 1 列在最右）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="rowDir">每列穿珠顺序</label>
+        <select id="rowDir">
+          <option value="btt">从下往上</option>
+          <option value="ttb">从上往下</option>
+        </select>
+      </div>
+      <label class="check"><input type="checkbox" id="optPerCol" checked><span>输出「每列各色用量」</span></label>
+      <label class="check"><input type="checkbox" id="optSwatch" checked><span>输出色卡表（含色号）</span></label>
+      <label class="check"><input type="checkbox" id="optBold" checked><span>列号用粗体（Markdown）</span></label>
+    </div>
+  </section>
+</main>
+
+<!-- ================= 下：文字图纸 ================= -->
+<section class="chart">
+  <div class="sec-hd">
+    <span class="sec-no">05</span>
+    <h2>文字图纸</h2>
+    <span class="sec-meta" id="chartMeta">等待图纸</span>
+    <div class="sec-hd-actions">
+      <button type="button" class="btn btn-ghost" id="copyBtn">复制</button>
+      <button type="button" class="btn btn-ghost" id="csvBtn">导出 CSV</button>
+      <button type="button" class="btn btn-ghost" id="pngBtn">导出识别图</button>
+      <button type="button" class="btn btn-secondary" id="txtBtn">下载 文字图纸.txt</button>
+      <button type="button" class="btn btn-primary" id="mdBtn">下载 文字图纸.md</button>
+    </div>
+  </div>
+  <pre id="chartOut" class="chart-out">上传图纸后，这里会生成每列的穿珠顺序与用量，照着就能穿。</pre>
+</section>
+
+<footer class="foot">
+  <span>纯前端处理 · 无后端 · 图片不上传</span>
+  <span class="mono" id="perfInfo"></span>
+</footer>
+
+<input type="file" id="fileInput" accept="image/*" hidden>
+<div class="toast" id="toast" hidden></div>
+<div class="busy" id="busy" hidden><span class="spin"></span>正在识别…</div>
+
+<script src="./js/color.js"></script>
+<script src="./js/grid.js"></script>
+<script src="./js/palette.js"></script>
+<script src="./js/textchart.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>
