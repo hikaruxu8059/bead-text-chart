@@ -441,6 +441,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   padding: 8px 14px; font-size: 12px; letter-spacing: .06em;
   border-radius: var(--radius);
 }
+.busy[hidden] { display: none; }
 .busy .spin {
   width: 11px; height: 11px; display: block;
   border: 2px solid currentColor; border-right-color: transparent;
