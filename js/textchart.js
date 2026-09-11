@@ -23,7 +23,7 @@
 
   /**
    * model = { cols, rows, cells, palette }
-   * opts  = { colDir, rowDir, perCol, swatch, bold }
+   * opts  = { colDir, rowDir, perCol, bold }
    */
   function build(model, opts) {
     var cols = model.cols, rows = model.rows;
@@ -61,17 +61,6 @@
     L.push('- 颜色：**' + palette.length + ' 种**');
     L.push('- 列序：' + colText + '；每列穿珠顺序：' + dirText);
     L.push('');
-
-    if (opts.swatch) {
-      L.push('## 色卡');
-      L.push('');
-      L.push('| # | 颜色 | 色号 | 总用量 |');
-      L.push('| --- | --- | --- | --- |');
-      palette.forEach(function (p, i) {
-        L.push('| ' + (i + 1) + ' | ' + nameOf(palette, i) + ' | `' + p.hex.toUpperCase() + '` | ' + totals[i] + ' 颗 |');
-      });
-      L.push('');
-    }
 
     L.push('## 一、每列穿珠顺序（' + dirText + '）');
     L.push('');

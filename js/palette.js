@@ -196,10 +196,15 @@
 
     (custom.merges || []).forEach(function (g) {
       var members = [];
-      for (var i = 0; i < n; i++) {
-        for (var j = 0; j < g.labs.length; j++) {
-          if (C.deltaE(palette[i].lab, g.labs[j]) < 10) { members.push(i); break; }
+      // 每个被勾选的颜色只对应一个最近的基础色。不能用色差范围收集，
+      // 否则未勾选但色相接近的相邻颜色也会被误并入。
+      for (var j = 0; j < g.labs.length; j++) {
+        var best = -1, bestDist = Infinity;
+        for (var i = 0; i < n; i++) {
+          var d = C.deltaE(palette[i].lab, g.labs[j]);
+          if (d < bestDist) { bestDist = d; best = i; }
         }
+        if (best >= 0 && members.indexOf(best) < 0) members.push(best);
       }
       for (var m = 1; m < members.length; m++) union(members[0], members[m]);
     });

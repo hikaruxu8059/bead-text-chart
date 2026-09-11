@@ -10,19 +10,22 @@
   var el = {
     drop: $('drop'), stage: $('stage'), fileInput: $('fileInput'),
     pickBtn: $('pickBtn'), pickBtn2: $('pickBtn2'), demoBtn: $('demoBtn'),
-    autoBtn: $('autoBtn'), themeBtn: $('themeBtn'),
+    autoBtn: $('autoBtn'), themeBtn: $('themeBtn'), weakGridBtn: $('weakGridBtn'),
     cols: $('cols'), rows: $('rows'),
-    cropT: $('cropT'), cropR: $('cropR'), cropB: $('cropB'), cropL: $('cropL'),
+    offsetX: $('offsetX'), offsetY: $('offsetY'), alignTools: $('alignTools'), resetAlignBtn: $('resetAlignBtn'),
     thresh: $('thresh'), threshOut: $('threshOut'), fixK: $('fixK'), kNum: $('kNum'),
     minCount: $('minCount'),
-    palette: $('palette'), paletteHint: $('paletteHint'), mergeBtn: $('mergeBtn'),
+    palette: $('palette'), paletteHint: $('paletteHint'), mergeBtn: $('mergeBtn'), undoMergeBtn: $('undoMergeBtn'),
     resultCanvas: $('resultCanvas'), gridCanvas: $('gridCanvas'),
     rawImg: $('rawImg'), rawWrap: $('rawWrap'),
     paneResult: $('paneResult'), paneRaw: $('paneRaw'), viewport: $('viewport'),
     stageStats: $('stageStats'), probe: $('probe'),
+    cellEditor: $('cellEditor'), cellEditLabel: $('cellEditLabel'), cellColor: $('cellColor'),
+    applyCellBtn: $('applyCellBtn'), resetCellBtn: $('resetCellBtn'),
+    clearCellSelectionBtn: $('clearCellSelectionBtn'),
     zoom: $('zoom'), zoomOut: $('zoomOut'),
     colDir: $('colDir'), rowDir: $('rowDir'),
-    optPerCol: $('optPerCol'), optSwatch: $('optSwatch'), optBold: $('optBold'),
+    optPerCol: $('optPerCol'), optBold: $('optBold'),
     chartOut: $('chartOut'), chartMeta: $('chartMeta'),
     copyBtn: $('copyBtn'), csvBtn: $('csvBtn'), pngBtn: $('pngBtn'),
     txtBtn: $('txtBtn'), mdBtn: $('mdBtn'),
@@ -34,14 +37,14 @@
     src: null, scale: 1,          // 分析画布 & 相对原图的缩放
     imgData: null, imgDataKey: '',
     cols: 100, rows: 77,
-    geom: null,                   // { cols, rows, originX, originY, cellW, cellH }
+    geom: null, detectedGeom: null, // 当前几何与自动识别的基准几何
     base: null,                   // 聚类原始结果
     palette: [], cells: null,
     custom: { merges: [], names: [] },
     selected: new Set(),
-    iso: -1, lockCol: -1,
-    fresh: true,
-    view: 'result',
+    iso: -1, selectedCells: new Set(), cellEdits: new Map(),
+    fresh: true, gridKey: '', probeCell: -1,
+    view: 'result', weakGrid: false,
     busyDepth: 0
   };
 
@@ -76,10 +79,11 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
   }
 
-  var debounceTimer = null;
-  function debounce(fn, ms) {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(fn, ms);
+  var debounceTimers = Object.create(null);
+  function debounce(fn, ms, key) {
+    key = key || fn.name || 'default';
+    clearTimeout(debounceTimers[key]);
+    debounceTimers[key] = setTimeout(fn, ms);
   }
 
   /* ============================ 载图 ============================ */
@@ -102,11 +106,14 @@
       S.img = img;
       el.rawImg.src = src;
       prepareCanvas();
-      resetCrop();
-      S.geom = null;
+      resetAlign();
+      S.geom = S.detectedGeom = null;
       S.fresh = true;
       S.custom = { merges: [], names: [] };
       S.selected.clear();
+      S.cellEdits.clear();
+      S.selectedCells.clear();
+      S.probeCell = -1;
       el.drop.hidden = true;
       el.stage.hidden = false;
       busy(false);
@@ -134,32 +141,16 @@
     S.imgDataKey = '';
   }
 
-  function resetCrop() {
-    el.cropT.value = el.cropR.value = el.cropB.value = el.cropL.value = 0;
-  }
-
-  /* ============================ 裁剪区域 ============================ */
-
-  function cropRect() {
-    var W = S.src.width, H = S.src.height, s = S.scale;
-    var l = Math.max(0, Math.round(num(el.cropL, 0, 1e6, 0) * s));
-    var r = Math.max(0, Math.round(num(el.cropR, 0, 1e6, 0) * s));
-    var t = Math.max(0, Math.round(num(el.cropT, 0, 1e6, 0) * s));
-    var b = Math.max(0, Math.round(num(el.cropB, 0, 1e6, 0) * s));
-    var w = Math.max(8, W - l - r);
-    var h = Math.max(8, H - t - b);
-    if (l + w > W) w = W - l;
-    if (t + h > H) h = H - t;
-    return { x: l, y: t, w: w, h: h };
+  function resetAlign() {
+    el.offsetX.value = el.offsetY.value = 0;
   }
 
   function getImageData() {
-    var rc = cropRect();
-    var key = [rc.x, rc.y, rc.w, rc.h].join(':');
+    var key = S.src.width + ':' + S.src.height;
     if (S.imgData && S.imgDataKey === key) return S.imgData;
     var ctx = S.src.getContext('2d', { willReadFrequently: true });
     try {
-      S.imgData = ctx.getImageData(rc.x, rc.y, rc.w, rc.h);
+      S.imgData = ctx.getImageData(0, 0, S.src.width, S.src.height);
     } catch (e) {
       toast('无法读取像素：请通过本地服务器打开（npm run dev），不要直接双击 index.html', 6000);
       throw e;
@@ -181,17 +172,24 @@
         if (withDetect) {
           var g = Grid.detect(id.data, id.width, id.height);
           if (g) {
-            S.geom = g;
+            S.detectedGeom = g;
             el.cols.value = g.cols;
             el.rows.value = g.rows;
           } else {
-            S.geom = null;
+            S.detectedGeom = null;
             toast('没能自动识别网格，请手动填写行列数', 3500);
           }
         }
 
         S.cols = num(el.cols, 1, 600, 100);
         S.rows = num(el.rows, 1, 600, 77);
+        var gridKey = S.cols + 'x' + S.rows;
+        if (S.gridKey && S.gridKey !== gridKey) {
+          S.cellEdits.clear();
+          S.selectedCells.clear();
+          S.probeCell = -1;
+        }
+        S.gridKey = gridKey;
         S.geom = fitGeometry(id.width, id.height);
 
         var raw = Grid.sample(id.data, id.width, id.height, S.geom, 0.30);
@@ -218,10 +216,17 @@
    * 手动改行列数时，从这个起点重新把区域均分。
    */
   function fitGeometry(W, H) {
-    var g = S.geom;
+    var g = S.detectedGeom;
     var ox = g ? g.originX : 0;
     var oy = g ? g.originY : 0;
-    if (g && g.cols === S.cols && g.rows === S.rows) return g;
+    var dx = parseFloat(el.offsetX.value) || 0;
+    var dy = parseFloat(el.offsetY.value) || 0;
+    ox += dx * S.scale;
+    oy += dy * S.scale;
+    if (g && g.cols === S.cols && g.rows === S.rows) return {
+      cols: g.cols, rows: g.rows, originX: ox, originY: oy,
+      cellW: g.cellW, cellH: g.cellH
+    };
     return {
       cols: S.cols, rows: S.rows,
       originX: ox, originY: oy,
@@ -235,18 +240,42 @@
     if (!S.base) return;
     var out = Palette.applyCustom(S.base.palette, S.base.cells, S.custom);
     S.palette = out.palette.map(function (p) { return Object.assign({}, p); });
-    S.cells = out.cells;
+    S.cells = new Int16Array(out.cells);
+    applyCellEdits();
     Color.nameAll(S.palette);
     S.iso = -1;
-    S.lockCol = -1;
     S.selected.clear();
     if (S.fresh) { shrinkZoomToFit(); S.fresh = false; }
     renderPalette();
     renderCanvas();
     renderGridOverlay();
     renderStats();
+    renderCellEditor();
+    if (S.probeCell >= 0 && S.probeCell < S.cells.length) {
+      showProbe({
+        c: S.probeCell % S.cols,
+        r: Math.floor(S.probeCell / S.cols),
+        idx: S.cells[S.probeCell]
+      });
+    }
     renderTextChart();
     if (S.pendingView) { setView(S.pendingView); S.pendingView = null; }
+  }
+
+  function applyCellEdits() {
+    S.cellEdits.forEach(function (edit, pos) {
+      if (pos < 0 || pos >= S.cells.length) return;
+      var best = 0, dist = Infinity;
+      for (var i = 0; i < S.palette.length; i++) {
+        var d = Color.deltaE(edit.lab, S.palette[i].lab);
+        if (d < dist) { dist = d; best = i; }
+      }
+      S.cells[pos] = best;
+    });
+    S.palette.forEach(function (p) { p.count = 0; });
+    for (var j = 0; j < S.cells.length; j++) {
+      if (S.palette[S.cells[j]]) S.palette[S.cells[j]].count++;
+    }
   }
 
   /* ============================ 渲染 ============================ */
@@ -302,6 +331,7 @@
     });
     el.palette.replaceChildren(frag);
     el.mergeBtn.disabled = true;
+    el.undoMergeBtn.disabled = S.custom.merges.length === 0;
     el.paletteHint.textContent = S.palette.length
       ? '改名后文字图纸实时更新；勾选两个及以上色块可合并为同一种珠子。'
       : '等待识别结果。';
@@ -330,7 +360,6 @@
     var cv = el.resultCanvas;
     if (!S.cells) return;
     var cs = num(el.zoom, 3, 26, 10);
-    var gap = cs >= 6 ? 1 : 0;
     cv.width = S.cols * cs;
     cv.height = S.rows * cs;
 
@@ -346,16 +375,34 @@
         if (!p) continue;
         ctx.globalAlpha = (S.iso < 0 || S.iso === idx) ? 1 : 0.12;
         ctx.fillStyle = p.hex;
-        ctx.fillRect(c * cs, r * cs, cs - gap, cs - gap);
+        ctx.fillRect(c * cs, r * cs, cs, cs);
       }
     }
     ctx.globalAlpha = 1;
 
-    if (S.lockCol >= 0 && S.lockCol < S.cols) {
-      ctx.strokeStyle = css.getPropertyValue('--accent').trim() || '#ec3013';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(S.lockCol * cs - 1, -1, cs + 1, S.rows * cs + 2);
+    if (cs >= 6) {
+      ctx.strokeStyle = S.weakGrid ? 'rgba(0,0,0,.4)' : '#000';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (var gc = 1; gc < S.cols; gc++) {
+        var gx = gc * cs - 0.5;
+        ctx.moveTo(gx, 0); ctx.lineTo(gx, cv.height);
+      }
+      for (var gr = 1; gr < S.rows; gr++) {
+        var gy = gr * cs - 0.5;
+        ctx.moveTo(0, gy); ctx.lineTo(cv.width, gy);
+      }
+      ctx.stroke();
     }
+
+    S.selectedCells.forEach(function (pos) {
+      if (pos < 0 || pos >= S.cells.length) return;
+      var lockR = Math.floor(pos / S.cols);
+      var lockC = pos % S.cols;
+      ctx.strokeStyle = css.getPropertyValue('--accent').trim() || '#009546';
+      ctx.lineWidth = Math.min(3, Math.max(2, cs / 4));
+      ctx.strokeRect(lockC * cs + 1, lockR * cs + 1, Math.max(1, cs - 2), Math.max(1, cs - 2));
+    });
   }
 
   function renderGridOverlay() {
@@ -367,33 +414,32 @@
     cv.style.height = dh + 'px';
 
     var g = S.geom;
-    var rc = cropRect();
     var k = dw / S.img.naturalWidth / S.scale;   // 分析画布坐标 → 显示坐标
-    var x0 = rc.x * k, y0 = rc.y * k;
-    var w = rc.w * k, h = rc.h * k;
+    var x0 = 0, y0 = 0;
+    var w = S.src.width * k, h = S.src.height * k;
 
     var ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, dw, dh);
-    ctx.strokeStyle = 'rgba(236,48,19,.7)';
+    ctx.strokeStyle = 'rgba(0,149,70,.7)';
     ctx.lineWidth = 1;
     ctx.beginPath();
 
     var c, r, v;
     for (c = 0; c <= g.cols; c++) {
       v = g.originX + c * g.cellW;
-      if (v < -0.5 || v > rc.w + 0.5) continue;
+      if (v < -0.5 || v > S.src.width + 0.5) continue;
       var x = Math.round(x0 + v * k) + 0.5;
       ctx.moveTo(x, y0); ctx.lineTo(x, y0 + h);
     }
     for (r = 0; r <= g.rows; r++) {
       v = g.originY + r * g.cellH;
-      if (v < -0.5 || v > rc.h + 0.5) continue;
+      if (v < -0.5 || v > S.src.height + 0.5) continue;
       var y = Math.round(y0 + v * k) + 0.5;
       ctx.moveTo(x0, y); ctx.lineTo(x0 + w, y);
     }
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(236,48,19,1)';
+    ctx.strokeStyle = 'rgba(0,149,70,1)';
     ctx.lineWidth = 2;
     ctx.strokeRect(x0, y0, w, h);
   }
@@ -414,7 +460,6 @@
       colDir: el.colDir.value,
       rowDir: el.rowDir.value,
       perCol: el.optPerCol.checked,
-      swatch: el.optSwatch.checked,
       bold: el.optBold.checked
     };
   }
@@ -440,6 +485,7 @@
 
   function showProbe(hit) {
     if (!hit) return;
+    S.probeCell = hit.r * S.cols + hit.c;
     var p = S.palette[hit.idx];
     if (!p) return;
     var colNo = el.colDir.value === 'rtl' ? S.cols - hit.c : hit.c + 1;
@@ -457,8 +503,33 @@
     pos.appendChild(span(' 颗'));
 
     var parts = [sw, pos, span(p.name, 'hl'), span(p.hex.toUpperCase())];
-    if (S.lockCol === hit.c) parts.push(span('（已锁定该列，再点一次取消）', 'hl'));
+    if (S.selectedCells.has(hit.r * S.cols + hit.c)) parts.push(span('（已选中；再次点击可取消）', 'hl'));
     el.probe.replaceChildren.apply(el.probe, parts);
+  }
+
+  function renderCellEditor() {
+    var valid = !!S.cells && S.selectedCells.size > 0;
+    el.cellColor.disabled = el.applyCellBtn.disabled = !valid;
+    el.clearCellSelectionBtn.disabled = !valid;
+    var hasEdited = false;
+    S.selectedCells.forEach(function (pos) { if (S.cellEdits.has(pos)) hasEdited = true; });
+    el.resetCellBtn.disabled = !valid || !hasEdited;
+    el.cellColor.replaceChildren();
+    if (!valid) {
+      el.cellEditLabel.textContent = '请点击识别结果中的格子';
+      return;
+    }
+    el.cellEditLabel.textContent = '已选中 ' + S.selectedCells.size + ' 格';
+    var first = S.selectedCells.values().next().value;
+    var sameColor = true, firstColor = S.cells[first];
+    S.selectedCells.forEach(function (pos) { if (S.cells[pos] !== firstColor) sameColor = false; });
+    S.palette.forEach(function (p, i) {
+      var option = document.createElement('option');
+      option.value = i;
+      option.textContent = p.name + '（' + p.hex.toUpperCase() + '）';
+      option.selected = sameColor && i === firstColor;
+      el.cellColor.appendChild(option);
+    });
   }
 
   /* ============================ 视图切换 ============================ */
@@ -470,6 +541,7 @@
     });
     el.paneResult.hidden = v !== 'result';
     el.paneRaw.hidden = v !== 'raw';
+    el.alignTools.hidden = v !== 'raw';
     if (v === 'raw') requestAnimationFrame(renderGridOverlay);
   }
 
@@ -501,7 +573,6 @@
         el.colDir.value = s.opts.colDir || 'ltr';
         el.rowDir.value = s.opts.rowDir || 'btt';
         el.optPerCol.checked = s.opts.perCol !== false;
-        el.optSwatch.checked = s.opts.swatch !== false;
         el.optBold.checked = s.opts.bold !== false;
       }
       if (s.theme) document.documentElement.setAttribute('data-theme', s.theme);
@@ -551,40 +622,45 @@
 
     // 网格参数
     [el.cols, el.rows].forEach(function (input) {
-      input.addEventListener('input', function () { debounce(function () { analyze(false); }, 260); });
+      input.addEventListener('input', function () { debounce(function () { analyze(false); }, 260, 'grid'); });
     });
     document.querySelectorAll('[data-step]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var input = el[btn.dataset.step];
         input.value = num(input, 1, 600, 1) + parseInt(btn.dataset.d, 10);
         input.value = num(input, 1, 600, 1);
-        debounce(function () { analyze(false); }, 120);
+        debounce(function () { analyze(false); }, 120, 'grid');
       });
     });
-    [el.cropT, el.cropR, el.cropB, el.cropL].forEach(function (input) {
+    el.autoBtn.addEventListener('click', function () {
+      resetAlign();
+      analyze(true);
+    });
+    [el.offsetX, el.offsetY].forEach(function (input) {
       input.addEventListener('input', function () {
-        S.imgDataKey = '';
-        S.geom = null;
-        debounce(function () { analyze(true); }, 320);
+        debounce(function () { analyze(false); }, 120, 'align');
       });
     });
-    el.autoBtn.addEventListener('click', function () { analyze(true); });
+    el.resetAlignBtn.addEventListener('click', function () {
+      resetAlign();
+      analyze(false);
+    });
 
     // 配色
     el.thresh.addEventListener('input', function () {
       el.threshOut.textContent = el.thresh.value;
       if (el.fixK.checked) return;
-      debounce(function () { analyze(false); }, 220);
+      debounce(function () { analyze(false); }, 220, 'palette');
     });
     el.fixK.addEventListener('change', function () {
       el.kNum.disabled = !el.fixK.checked;
       analyze(false);
     });
     el.kNum.addEventListener('input', function () {
-      if (el.fixK.checked) debounce(function () { analyze(false); }, 260);
+      if (el.fixK.checked) debounce(function () { analyze(false); }, 260, 'palette');
     });
     el.minCount.addEventListener('input', function () {
-      debounce(function () { analyze(false); }, 260);
+      debounce(function () { analyze(false); }, 260, 'palette');
     });
     el.mergeBtn.addEventListener('click', function () {
       if (S.selected.size < 2) return;
@@ -594,12 +670,23 @@
       applyCustomAndRender();
       toast('已合并 ' + labs.length + ' 种颜色');
     });
+    el.undoMergeBtn.addEventListener('click', function () {
+      if (!S.custom.merges.length) return;
+      S.custom.merges.pop();
+      applyCustomAndRender();
+      toast('已撤销上一次颜色合并');
+    });
 
     // 画布
     el.zoom.addEventListener('input', function () {
       el.zoomOut.textContent = el.zoom.value + 'px';
       renderCanvas();
       saveSettings();
+    });
+    el.weakGridBtn.addEventListener('click', function () {
+      S.weakGrid = !S.weakGrid;
+      el.weakGridBtn.setAttribute('aria-pressed', String(S.weakGrid));
+      renderCanvas();
     });
     document.querySelectorAll('.tab').forEach(function (t) {
       t.addEventListener('click', function () { setView(t.dataset.view); });
@@ -608,16 +695,47 @@
     el.resultCanvas.addEventListener('click', function (e) {
       var hit = probeAt(e);
       if (!hit) return;
-      S.lockCol = S.lockCol === hit.c ? -1 : hit.c;
+      var pos = hit.r * S.cols + hit.c;
+      if (S.selectedCells.has(pos)) {
+        S.selectedCells.delete(pos);
+      } else if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        S.selectedCells.add(pos);
+      } else {
+        S.selectedCells.clear();
+        S.selectedCells.add(pos);
+      }
       renderCanvas();
+      renderCellEditor();
       showProbe(hit);
     });
+    el.applyCellBtn.addEventListener('click', function () {
+      if (!S.selectedCells.size) return;
+      var p = S.palette[num(el.cellColor, 0, S.palette.length - 1, 0)];
+      if (!p) return;
+      S.selectedCells.forEach(function (pos) { S.cellEdits.set(pos, { lab: p.lab.slice() }); });
+      var count = S.selectedCells.size;
+      applyCustomAndRender();
+      toast('已修改 ' + count + ' 格的颜色');
+    });
+    el.resetCellBtn.addEventListener('click', function () {
+      if (!S.selectedCells.size) return;
+      var count = S.selectedCells.size;
+      S.selectedCells.forEach(function (pos) { S.cellEdits.delete(pos); });
+      applyCustomAndRender();
+      toast('已恢复所选 ' + count + ' 格的识别颜色');
+    });
+    el.clearCellSelectionBtn.addEventListener('click', function () {
+      S.selectedCells.clear();
+      renderCanvas();
+      renderCellEditor();
+      el.probe.textContent = '已取消全部选择';
+    });
     el.rawImg.addEventListener('load', renderGridOverlay);
-    window.addEventListener('resize', function () { debounce(renderGridOverlay, 150); });
+    window.addEventListener('resize', function () { debounce(renderGridOverlay, 150, 'resize'); });
 
     // 输出选项
-    [el.colDir, el.rowDir, el.optPerCol, el.optSwatch, el.optBold].forEach(function (c) {
-      c.addEventListener('change', renderTextChart);
+    [el.colDir, el.rowDir, el.optPerCol, el.optBold].forEach(function (c) {
+      c.addEventListener('change', function () { renderTextChart(); renderCellEditor(); });
     });
 
     // 导出

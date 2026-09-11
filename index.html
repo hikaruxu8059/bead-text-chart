@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>串珠文字图纸生成工具</title>
 <meta name="description" content="上传串珠帘图纸，自动识别网格与配色，逐列生成可照着穿的文字图纸。图片全部在浏览器本地处理，不上传服务器。">
-<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="icon" href="./assets/prints-icon.png" type="image/png">
 <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
 
 <header class="topbar">
   <div class="brand">
-    <span class="brand-mark" aria-hidden="true"></span>
+    <img class="brand-mark" src="./assets/prints-icon.png" alt="" aria-hidden="true">
     <span class="brand-name">串珠<span class="hi">文字</span>图纸生成工具</span>
     <span class="brand-sub">上传图纸，逐列读出穿珠顺序与用量</span>
   </div>
@@ -48,6 +48,16 @@
       <div class="tabs" role="tablist">
         <button type="button" class="tab on" data-view="result" role="tab">识别结果</button>
         <button type="button" class="tab" data-view="raw" role="tab">原图 + 网格</button>
+        <button type="button" class="btn btn-ghost weak-grid-btn" id="weakGridBtn" aria-pressed="false">弱化网格</button>
+      </div>
+      <div class="align-tools" id="alignTools" hidden>
+        <strong>网格对齐微调</strong>
+        <label for="offsetX">水平</label>
+        <input type="number" id="offsetX" value="0" step="1">
+        <label for="offsetY">垂直</label>
+        <input type="number" id="offsetY" value="0" step="1">
+        <button type="button" class="btn btn-ghost" id="resetAlignBtn">归零</button>
+        <span class="hint">单位为原图像素；正数向右 / 向下移动红色网格。</span>
       </div>
 
       <div class="viewport" id="viewport">
@@ -71,7 +81,15 @@
         </div>
       </div>
 
-      <div class="probe" id="probe">把鼠标移到格子上可查看行列与颜色；点击某格可锁定该列。</div>
+      <div class="probe" id="probe">点击：单选 · 再次点击已选格：取消该格 · Shift / Ctrl / ⌘ + 点击：追加多选</div>
+      <div class="cell-editor" id="cellEditor">
+        <div class="cell-select-help">多选格子：按住 Shift / Ctrl / ⌘ 再点击其他格子；再次点击已选格可取消当前格。</div>
+        <span id="cellEditLabel">请点击识别结果中的格子</span>
+        <select id="cellColor" aria-label="修正后的颜色" disabled></select>
+        <button type="button" class="btn btn-primary" id="applyCellBtn" disabled>修改所选颜色</button>
+        <button type="button" class="btn btn-ghost" id="resetCellBtn" disabled>恢复所选</button>
+        <button type="button" class="btn btn-ghost" id="clearCellSelectionBtn" disabled>取消全部选择</button>
+      </div>
     </div>
   </section>
 
@@ -104,17 +122,6 @@
       </div>
     </div>
 
-    <details class="crop">
-      <summary>裁边微调（图纸四周有留白时使用）</summary>
-      <div class="grid-4">
-        <div class="field mini"><label for="cropT">上</label><input type="number" id="cropT" value="0" step="1"></div>
-        <div class="field mini"><label for="cropR">右</label><input type="number" id="cropR" value="0" step="1"></div>
-        <div class="field mini"><label for="cropB">下</label><input type="number" id="cropB" value="0" step="1"></div>
-        <div class="field mini"><label for="cropL">左</label><input type="number" id="cropL" value="0" step="1"></div>
-      </div>
-      <p class="hint">单位为原图像素。切到「原图 + 网格」标签，红线对齐格线即为正确。</p>
-    </details>
-
     <div class="pad">
       <div class="range-hd">
         <label for="thresh">相近色合并强度</label>
@@ -140,6 +147,7 @@
       <span class="sec-no">03</span>
       <h2>色卡命名</h2>
       <div class="sec-hd-actions">
+        <button type="button" class="btn btn-ghost undo-merge" id="undoMergeBtn" title="撤销上一次颜色合并" aria-label="撤销上一次颜色合并" disabled>↶</button>
         <button type="button" class="btn btn-ghost" id="mergeBtn" disabled>合并所选</button>
       </div>
     </div>
@@ -167,7 +175,6 @@
         </select>
       </div>
       <label class="check"><input type="checkbox" id="optPerCol" checked><span>输出「每列各色用量」</span></label>
-      <label class="check"><input type="checkbox" id="optSwatch" checked><span>输出色卡表（含色号）</span></label>
       <label class="check"><input type="checkbox" id="optBold" checked><span>列号用粗体（Markdown）</span></label>
     </div>
   </section>

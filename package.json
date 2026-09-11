@@ -4,12 +4,19 @@
   "private": true,
   "description": "串珠文字图纸生成工具：纯浏览器端识别网格与配色，逐列生成可照着穿的文字图纸",
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js"
+    "dev": "node server.js"
   },
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["串珠", "珠帘", "图纸", "文字图纸", "pixel-chart", "vercel", "static"],
+  "keywords": [
+    "串珠",
+    "珠帘",
+    "图纸",
+    "文字图纸",
+    "pixel-chart",
+    "vercel",
+    "static"
+  ],
   "license": "MIT"
 }
