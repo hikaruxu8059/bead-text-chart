@@ -187,11 +187,11 @@
     <h2>文字图纸</h2>
     <span class="sec-meta" id="chartMeta">等待图纸</span>
     <div class="sec-hd-actions">
-      <button type="button" class="btn btn-ghost" id="copyBtn">复制</button>
-      <button type="button" class="btn btn-ghost" id="csvBtn">导出 CSV</button>
-      <button type="button" class="btn btn-ghost" id="pngBtn">导出识别图</button>
-      <button type="button" class="btn btn-secondary" id="txtBtn">下载 文字图纸.txt</button>
-      <button type="button" class="btn btn-primary" id="mdBtn">下载 文字图纸.md</button>
+      <button type="button" class="btn btn-ghost" id="copyBtn" title="将当前文字图纸复制到剪贴板，可粘贴到笔记或聊天中">复制</button>
+      <button type="button" class="btn btn-ghost" id="csvBtn" title="导出颜色矩阵 CSV，可在 Excel 等表格软件中逐格核对颜色">导出 CSV</button>
+      <button type="button" class="btn btn-ghost" id="pngBtn" title="保存识别结果的 PNG 图片，方便与原图对照">导出识别图</button>
+      <button type="button" class="btn btn-secondary" id="txtBtn" title="将当前文字图纸保存为纯文本文件">下载 文字图纸.txt</button>
+      <button type="button" class="btn btn-primary" id="mdBtn" title="保存为 Markdown 文件，可在支持 Markdown 的软件中排版查看">下载 文字图纸.md</button>
     </div>
   </div>
   <pre id="chartOut" class="chart-out">上传图纸后，这里会生成每列的穿珠顺序与用量，照着就能穿。</pre>

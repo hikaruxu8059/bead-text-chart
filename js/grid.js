@@ -9,39 +9,43 @@
   /* ------------------------------------------------------------------
      1. 边缘能量曲线
 
-     先按列（行）求 RGB 均值，再做一阶差分。
-     图纸的每一格列在整列上颜色构成相同，所以「列均值」在一格之内是常数，
-     只在格线处跳变 —— 差分后就是干净的周期脉冲。
-     逐像素求差再累加的做法会把 JPEG 噪声一起累积，信噪比差很多。
+     对每一条相邻像素边界，统计整列（或整行）的平均 RGB 色差。
+     网格线会贯穿大部分画面，在固定间距上形成稳定脉冲；图案轮廓虽然更深，
+     通常只覆盖局部，不会像格线一样在整条边界上持续出现。
      ------------------------------------------------------------------ */
   function meanProfiles(data, W, H) {
-    var mx = new Float64Array(W * 3);
-    var my = new Float64Array(H * 3);
-    var x, y, i;
+    var ex = new Float64Array(W);
+    var ey = new Float64Array(H);
+    var x, y, i, j;
 
     for (y = 0; y < H; y++) {
       var row = y * W * 4;
-      var ry = y * 3;
-      for (x = 0; x < W; x++) {
+      for (x = 1; x < W; x++) {
         i = row + x * 4;
-        var r = data[i], g = data[i + 1], b = data[i + 2];
-        var rx = x * 3;
-        mx[rx] += r; mx[rx + 1] += g; mx[rx + 2] += b;
-        my[ry] += r; my[ry + 1] += g; my[ry + 2] += b;
+        j = i - 4;
+        ex[x] += Math.abs(data[i] - data[j]) +
+                 Math.abs(data[i + 1] - data[j + 1]) +
+                 Math.abs(data[i + 2] - data[j + 2]);
       }
     }
-
-    var ex = new Float64Array(W);
-    var ey = new Float64Array(H);
-    for (x = 1; x < W; x++) {
-      ex[x] = (Math.abs(mx[x * 3] - mx[(x - 1) * 3]) +
-               Math.abs(mx[x * 3 + 1] - mx[(x - 1) * 3 + 1]) +
-               Math.abs(mx[x * 3 + 2] - mx[(x - 1) * 3 + 2])) / H;
+    for (x = 0; x < W; x++) {
+      for (y = 1; y < H; y++) {
+        i = (y * W + x) * 4;
+        j = i - W * 4;
+        ey[y] += Math.abs(data[i] - data[j]) +
+                 Math.abs(data[i + 1] - data[j + 1]) +
+                 Math.abs(data[i + 2] - data[j + 2]);
+      }
     }
-    for (y = 1; y < H; y++) {
-      ey[y] = (Math.abs(my[y * 3] - my[(y - 1) * 3]) +
-               Math.abs(my[y * 3 + 1] - my[(y - 1) * 3 + 1]) +
-               Math.abs(my[y * 3 + 2] - my[(y - 1) * 3 + 2])) / W;
+    for (x = 1; x < W; x++) ex[x] /= H;
+    for (y = 1; y < H; y++) ey[y] /= W;
+
+    // 三点轻度平滑，降低 JPEG 单像素噪声，同时保留 1–2px 格线峰。
+    for (x = 1; x < W - 1; x++) {
+      ex[x] = ex[x] * 0.6 + (ex[x - 1] + ex[x + 1]) * 0.2;
+    }
+    for (y = 1; y < H - 1; y++) {
+      ey[y] = ey[y] * 0.6 + (ey[y - 1] + ey[y + 1]) * 0.2;
     }
     return { ex: ex, ey: ey };
   }
@@ -106,32 +110,71 @@
     var maxP = Math.min(MAX_PERIOD, Math.floor(n / 6));
     if (maxP < MIN_PERIOD) return null;
 
-    // --- 粗扫：等比步长，窗口只取 ~30 个周期，容忍较大步长 ---
-    var coarse = [];
+    // 先对去掉基线后的边缘能量做自相关。真实格距会让相隔 p 的格线峰
+    // 反复重合；人物轮廓等非周期边缘则不会。整数粗扫不会因为候选步长
+    // 略偏而在长图上累计相位漂移。
+    var mean = 0;
+    for (var m = 1; m < n; m++) mean += E[m];
+    mean /= Math.max(1, n - 1);
+    var V = new Float64Array(n);
+    for (m = 1; m < n; m++) V[m] = Math.max(0, E[m] - mean);
+
+    var scores = new Float64Array(maxP + 1);
     var best = 0;
-    for (var p = MIN_PERIOD; p <= maxP; p *= 1 + 1 / 60) {
-      var win = Math.min(n, Math.round(30 * p));
-      var r = fold(E, p, win);
-      coarse.push({ p: p, score: r.score });
-      if (r.score > best) best = r.score;
+    for (var p = MIN_PERIOD; p <= maxP; p++) {
+      var dot = 0, aa = 0, bb = 0;
+      for (var i = 1; i + p < n; i++) {
+        var a = V[i], b = V[i + p];
+        dot += a * b; aa += a * a; bb += b * b;
+      }
+      scores[p] = aa > 0 && bb > 0 ? dot / Math.sqrt(aa * bb) : 0;
+      if (scores[p] > best) best = scores[p];
     }
-    if (best <= 0.35) return null;          // 没有可信的周期结构
+    if (best < 0.18) return null;
 
-    // 真实周期的整数倍同样得高分，所以在高分区间里取最小的 p
+    // 倍数周期也会相关，选择第一个足够强的局部峰作为基础格距。
     var pick = null;
-    for (var i = 0; i < coarse.length; i++) {
-      if (coarse[i].score >= best * 0.75) { pick = coarse[i].p; break; }
+    for (p = MIN_PERIOD; p <= maxP; p++) {
+      if (scores[p] >= best * 0.72 &&
+          scores[p] >= (scores[p - 1] || 0) &&
+          scores[p] >= (scores[p + 1] || 0)) {
+        pick = p;
+        break;
+      }
     }
-    if (pick == null) return null;
+    if (pick == null) pick = MIN_PERIOD;
 
-    // --- 细扫：全信号，步长细到漂移小于 1/3 像素 ---
-    var lo = Math.max(MIN_PERIOD, pick * (1 - 1 / 30));
-    var hi = Math.min(maxP, pick * (1 + 1 / 30));
-    var step = Math.max(1e-4, pick / (3 * n));
+    // 再以折叠得分做亚像素细化，适配图片缩放后的非整数格距。
+    var lo = Math.max(MIN_PERIOD, pick - 1.1);
+    var hi = Math.min(maxP, pick + 1.1);
+    var step = Math.max(0.002, pick / (3 * n));
     var out = null;
     for (var q = lo; q <= hi; q += step) {
       var f = fold(E, q, n);
-      if (!out || f.score > out.score) out = { period: q, phase: f.phase, score: f.score };
+      if (!out || f.score > out.score) {
+        out = { period: q, phase: f.phase, score: f.score, correlation: scores[pick] };
+      }
+    }
+    return out;
+  }
+
+  /**
+   * 在指定格子尺寸附近重新寻找周期。
+   * 横纵方向独立检测时，内容边缘有时会让其中一边误中 1/2 或 2 倍周期；
+   * 串珠图的格子通常接近正方形，因此可以用另一方向的结果做一次温和校正。
+   */
+  function detectPeriodNear(E, target) {
+    var n = E.length;
+    var maxP = Math.min(MAX_PERIOD, Math.floor(n / 6));
+    if (!(target >= MIN_PERIOD && target <= maxP)) return null;
+
+    var lo = Math.max(MIN_PERIOD, target * 0.88);
+    var hi = Math.min(maxP, target * 1.12);
+    var step = Math.max(0.002, target / (2 * n));
+    var out = null;
+    for (var p = lo; p <= hi; p += step) {
+      var f = fold(E, p, n);
+      if (!out || f.score > out.score) out = { period: p, phase: f.phase, score: f.score };
     }
     return out;
   }
@@ -148,7 +191,8 @@
 
     var span = (len - origin) / p;
     var whole = Math.floor(span);
-    var count = whole + (span - whole >= 0.35 ? 1 : 0);
+    // 超过半格才计入边缘残格，避免轻微留白或裁切导致多算一行/列。
+    var count = whole + (span - whole >= 0.50 ? 1 : 0);
     count = Math.max(1, Math.min(600, count));
 
     return { origin: origin, size: p, count: count };
@@ -159,6 +203,45 @@
     var px = detectPeriod(prof.ex);
     var py = detectPeriod(prof.ey);
     if (!px || !py) return null;
+
+    // 优先选择横纵格子尺寸更接近的组合，但只有候选周期本身仍有足够
+    // 周期信号时才替换，避免为了“方格”强行覆盖真实检测结果。
+    var nx = detectPeriodNear(prof.ex, py.period);
+    var ny = detectPeriodNear(prof.ey, px.period);
+    var pairs = [[px, py]];
+    if (nx && nx.score >= 0.35) pairs.push([nx, py]);
+    if (ny && ny.score >= 0.35) pairs.push([px, ny]);
+
+    var bestPair = pairs[0];
+    var bestQuality = -Infinity;
+    for (var i = 0; i < pairs.length; i++) {
+      var ax = pairs[i][0], ay = pairs[i][1];
+      var squarePenalty = Math.abs(Math.log(ax.period / ay.period));
+      var signal = Math.log(1 + Math.min(ax.score, ay.score));
+      var quality = signal - 1.8 * squarePenalty;
+      if (quality > bestQuality) {
+        bestQuality = quality;
+        bestPair = pairs[i];
+      }
+    }
+    px = bestPair[0];
+    py = bestPair[1];
+
+    // 串珠/十字绣图纸使用正方形格子。若一边被大色块轮廓误判成基础
+    // 周期的整数倍，取较小周期；两边接近时取加权平均。随后分别重算
+    // 横纵相位，使最终列数/行数自然遵循原图的宽高比。
+    var ratio = Math.max(px.period, py.period) / Math.min(px.period, py.period);
+    var commonPeriod;
+    if (ratio > 1.18) {
+      commonPeriod = Math.min(px.period, py.period);
+    } else {
+      commonPeriod = (px.period * px.score + py.period * py.score) /
+                     Math.max(1e-9, px.score + py.score);
+    }
+    var fx = fold(prof.ex, commonPeriod, prof.ex.length);
+    var fy = fold(prof.ey, commonPeriod, prof.ey.length);
+    px = { period: commonPeriod, phase: fx.phase, score: fx.score };
+    py = { period: commonPeriod, phase: fy.phase, score: fy.score };
 
     var gx = geometry(W, px);
     var gy = geometry(H, py);
