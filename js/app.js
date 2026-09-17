@@ -104,6 +104,8 @@
     var img = new Image();
     img.onload = function () {
       S.img = img;
+      // 空状态允许显示 0；图片载入后网格尺寸必须至少为 1 × 1。
+      el.cols.min = el.rows.min = '1';
       el.rawImg.src = src;
       prepareCanvas();
       resetAlign();
@@ -627,8 +629,9 @@
     document.querySelectorAll('[data-step]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var input = el[btn.dataset.step];
-        input.value = num(input, 1, 600, 1) + parseInt(btn.dataset.d, 10);
-        input.value = num(input, 1, 600, 1);
+        var min = S.img ? 1 : 0;
+        input.value = num(input, min, 600, min) + parseInt(btn.dataset.d, 10);
+        input.value = num(input, min, 600, min);
         debounce(function () { analyze(false); }, 120, 'grid');
       });
     });
