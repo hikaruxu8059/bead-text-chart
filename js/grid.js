@@ -13,7 +13,7 @@
      网格线会贯穿大部分画面，在固定间距上形成稳定脉冲；图案轮廓虽然更深，
      通常只覆盖局部，不会像格线一样在整条边界上持续出现。
      ------------------------------------------------------------------ */
-  function meanProfiles(data, W, H) {
+  function meanProfiles(data, W, H, smooth) {
     var ex = new Float64Array(W);
     var ey = new Float64Array(H);
     var x, y, i, j;
@@ -39,6 +39,8 @@
     }
     for (x = 1; x < W; x++) ex[x] /= H;
     for (y = 1; y < H; y++) ey[y] /= W;
+
+    if (smooth === false) return { ex: ex, ey: ey };
 
     // 三点轻度平滑，降低 JPEG 单像素噪声，同时保留 1–2px 格线峰。
     for (x = 1; x < W - 1; x++) {
@@ -198,7 +200,59 @@
     return { origin: origin, size: p, count: count };
   }
 
+  // Small resized pixel-art cells need unsmoothed profiles: smoothing erases their
+  // fundamental frequency and the line detector otherwise locks onto a multiple.
+  function spectralPeak(E, period) {
+    var mean = 0, total = 0, real = 0, imaginary = 0;
+    for (var i = 1; i < E.length; i++) total += E[i];
+    mean = total / Math.max(1, E.length - 1);
+    if (total < 1e-8) return { score: 0, phase: 0, period: period };
+    for (i = 1; i < E.length; i++) {
+      var angle = 2 * Math.PI * i / period, value = E[i] - mean;
+      real += value * Math.cos(angle); imaginary += value * Math.sin(angle);
+    }
+    var phase = Math.atan2(imaginary, real) * period / (2 * Math.PI);
+    if (phase < 0) phase += period;
+    return { period: period, phase: phase, score: Math.hypot(real, imaginary) / total };
+  }
+
+  function detectSmallCells(prof) {
+    var length = Math.max(prof.ex.length, prof.ey.length);
+    if (Math.min(prof.ex.length, prof.ey.length) < 24) return null;
+    var step = 1 / (length * 8), best = null;
+    for (var frequency = 1 / 5; frequency <= 1 / 2; frequency += step) {
+      var x = spectralPeak(prof.ex, 1 / frequency), y = spectralPeak(prof.ey, 1 / frequency);
+      var score = Math.sqrt(x.score * y.score);
+      if (!best || score > best.score) best = { x: x, y: y, score: score };
+    }
+    if (best.score < 0.18 || Math.min(best.x.score, best.y.score) < 0.12) return null;
+    // Printed grid lines also have strong harmonics. Do not mistake a half-cell
+    // harmonic for a fundamental if its larger period has comparable support.
+    for (var multiple = 2; multiple <= 6; multiple++) {
+      var period = best.x.period * multiple;
+      var sx = spectralPeak(prof.ex, period), sy = spectralPeak(prof.ey, period);
+      if (Math.sqrt(sx.score * sy.score) >= best.score * 0.85) return null;
+    }
+    function refine(E, target) {
+      var result = spectralPeak(E, target);
+      for (var f = 1 / (target * 1.02); f <= 1 / (target * 0.98); f += step / 2) {
+        var candidate = spectralPeak(E, 1 / f);
+        if (candidate.score > result.score) result = candidate;
+      }
+      return result;
+    }
+    return { x: refine(prof.ex, best.x.period), y: refine(prof.ey, best.y.period) };
+  }
+
   function detect(data, W, H) {
+    var small = detectSmallCells(meanProfiles(data, W, H, false));
+    if (small) {
+      var smallX = geometry(W, small.x), smallY = geometry(H, small.y);
+      return { cols: smallX.count, rows: smallY.count,
+        originX: smallX.origin, originY: smallY.origin,
+        cellW: smallX.size, cellH: smallY.size,
+        confidence: Math.min(small.x.score, small.y.score) };
+    }
     var prof = meanProfiles(data, W, H);
     var px = detectPeriod(prof.ex);
     var py = detectPeriod(prof.ey);
@@ -257,9 +311,9 @@
      3. 逐格取色
 
      只看格子中央区域，把颜色粗量化后取「出现最多的一桶」的均值：
-     格线、抗锯齿边缘和 JPEG 杂色都不会把结果拉偏。
+     减少格线、抗锯齿边缘和 JPEG 杂色的影响；也支持直接取中心像素。
      ------------------------------------------------------------------ */
-  function sample(data, W, H, geom, inset) {
+  function sample(data, W, H, geom, inset, method) {
     inset = inset == null ? 0.30 : inset;
     var cols = geom.cols, rows = geom.rows;
     var ox = geom.originX || 0, oy = geom.originY || 0;
@@ -271,6 +325,14 @@
       var ry0 = oy + r * ch, ry1 = ry0 + ch;
       for (var c = 0; c < cols; c++) {
         var rx0 = ox + c * cw, rx1 = rx0 + cw;
+
+        if (method === 'center') {
+          var cx = Math.max(0, Math.min(W - 1, Math.floor((rx0 + rx1) / 2)));
+          var cy = Math.max(0, Math.min(H - 1, Math.floor((ry0 + ry1) / 2)));
+          var center = (cy * W + cx) * 4;
+          out[r * cols + c] = [data[center], data[center + 1], data[center + 2]];
+          continue;
+        }
 
         var x0 = Math.floor(rx0 + cw * inset);
         var x1 = Math.ceil(rx1 - cw * inset);

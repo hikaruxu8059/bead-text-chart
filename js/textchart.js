@@ -18,25 +18,30 @@
 
   function nameOf(palette, i) {
     var p = palette[i];
-    return (p && p.name) || ('色' + (i + 1));
+    return p ? (p.code || p.name || ('色' + (i + 1))) : '色' + (i + 1);
   }
 
   /**
    * model = { cols, rows, cells, palette }
-   * opts  = { colDir, rowDir, perCol, bold }
+   * opts  = { axis, colDir, rowDir, perCol }
    */
   function build(model, opts) {
     var cols = model.cols, rows = model.rows;
     var cells = model.cells, palette = model.palette;
     if (!cells || !cells.length || !palette.length) {
-      return '上传图纸后，这里会生成每列的穿珠顺序与用量，照着就能穿。';
+      return '上传图纸后，这里会生成每行或每列的穿珠顺序与用量，照着就能穿。';
     }
 
-    var b = opts.bold ? '**' : '';
-    var order = colOrder(cols, opts.colDir);
-    var rOrder = rowOrder(rows, opts.rowDir);
-    var dirText = opts.rowDir === 'ttb' ? '从上往下' : '从下往上';
-    var colText = opts.colDir === 'rtl' ? '第 1 列在最右' : '第 1 列在最左';
+    var b = '**';
+    var byRow = opts.axis === 'row';
+    var unit = byRow ? '行' : '列';
+    var horizontal = colOrder(cols, opts.colDir);
+    var vertical = rowOrder(rows, opts.rowDir);
+    var order = byRow ? vertical : horizontal;
+    var beadOrder = byRow ? horizontal : vertical;
+    var dirText = byRow ? (opts.colDir === 'rtl' ? '从右到左' : '从左到右') : (opts.rowDir === 'ttb' ? '从上往下' : '从下往上');
+    var colText = byRow ? (opts.rowDir === 'ttb' ? '第 1 行在最上' : '第 1 行在最下') : (opts.colDir === 'rtl' ? '第 1 列在最右' : '第 1 列在最左');
+    function cellAt(line, bead) { return cells[byRow ? line * cols + bead : bead * cols + line]; }
 
     var L = [];
     var totals = new Array(palette.length).fill(0);
@@ -46,8 +51,8 @@
     for (var k = 0; k < order.length; k++) {
       var c = order[k];
       var cnt = new Map();
-      for (var r = 0; r < rows; r++) {
-        var v = cells[r * cols + c];
+      for (var r = 0; r < beadOrder.length; r++) {
+        var v = cellAt(c, beadOrder[r]);
         cnt.set(v, (cnt.get(v) || 0) + 1);
         totals[v]++;
       }
@@ -59,34 +64,35 @@
     L.push('');
     L.push('- 网格：**' + cols + ' 列 × ' + rows + ' 行**，共 ' + grand + ' 颗');
     L.push('- 颜色：**' + palette.length + ' 种**');
-    L.push('- 列序：' + colText + '；每列穿珠顺序：' + dirText);
+    if (model.libraryName) L.push('- 色号库：' + model.libraryName);
+    L.push('- ' + unit + '序：' + colText + '；每' + unit + '串珠顺序：' + dirText);
     L.push('');
 
-    L.push('## 一、每列穿珠顺序（' + dirText + '）');
+    L.push('## 一、每' + unit + '穿珠顺序（' + dirText + '）');
     L.push('');
     for (var k2 = 0; k2 < order.length; k2++) {
       var col = order[k2];
       var runs = [];
-      for (var t = 0; t < rOrder.length; t++) {
-        var v2 = cells[rOrder[t] * cols + col];
+      for (var t = 0; t < beadOrder.length; t++) {
+        var v2 = cellAt(col, beadOrder[t]);
         var last = runs[runs.length - 1];
         if (last && last.v === v2) last.n++;
         else runs.push({ v: v2, n: 1 });
       }
-      L.push(b + '第' + (k2 + 1) + '列' + b + '：' + runs.map(function (x) {
+      L.push(b + '第' + (k2 + 1) + unit + b + '：' + runs.map(function (x) {
         return x.n + '个' + nameOf(palette, x.v);
       }).join('，'));
       L.push('');
     }
 
     if (opts.perCol) {
-      L.push('## 二、每列各色用量');
+      L.push('## 二、每' + unit + '各色用量');
       L.push('');
       for (var k3 = 0; k3 < perColCounts.length; k3++) {
         var parts = Array.from(perColCounts[k3].entries())
           .sort(function (a, x) { return x[1] - a[1] || a[0] - x[0]; })
           .map(function (e) { return nameOf(palette, e[0]) + ' ' + e[1] + '个'; });
-        L.push(b + '第' + (k3 + 1) + '列' + b + '：' + parts.join('，'));
+        L.push(b + '第' + (k3 + 1) + unit + b + '：' + parts.join('，'));
         L.push('');
       }
     }

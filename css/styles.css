@@ -16,8 +16,15 @@
   --accent-700:#007a39;
   --ok:        #009546;
   --shadow:    0 1px 2px rgba(34,37,36,.04);
-  --radius:    4px;
+  --radius:    6px;
   --radius-sm: 4px;
+  --control-height: 36px;
+  --panel-padding: 20px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --font-control: 13px;
+  --font-caption: 12px;
+  --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--surface));
 
   --font-body: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-head: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -146,10 +153,10 @@ kbd {
 
 .sec-hd {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 14px 20px;
+  padding: 16px var(--panel-padding);
   border-bottom: var(--bd);
   background: var(--surface);
 }
@@ -162,7 +169,7 @@ kbd {
 .sec-hd h2 {
   margin: 0;
   font-family: var(--font-head);
-  font-weight: 900;
+  font-weight: 600;
   font-size: 15px;
 }
 .sec-meta { font-size: 12px; color: var(--n600); }
@@ -173,8 +180,10 @@ kbd {
 .btn {
   font: inherit;
   font-size: 13px;
-  line-height: 1.2;
-  padding: 6px 12px;
+  line-height: 1.4;
+  min-height: var(--control-height);
+  font-weight: 500;
+  padding: 7px 12px;
   border: var(--bd);
   border-radius: var(--radius);
   background: var(--surface);
@@ -183,7 +192,7 @@ kbd {
   white-space: nowrap;
   transition: background .12s, color .12s;
 }
-.btn:hover:not(:disabled) { background: #eef5f0; border-color: var(--accent); color: var(--accent-700); }
+.btn:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-700); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 .btn-ghost { border-color: var(--n400); }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -194,6 +203,10 @@ kbd {
 /* ---------------- dropzone ---------------- */
 
 .drop { padding: 24px; }
+#pixelTools[hidden], #pixelEffects[hidden], #pixelPngBtn[hidden] { display: none; }
+.pal-name { min-width: 0; }
+.pal-code { display: block; font: 600 14px var(--mono); color: var(--text); }
+.tabs { flex-wrap: wrap; }
 .drop-inner {
   display: flex;
   flex-direction: column;
@@ -212,7 +225,11 @@ kbd {
 
 .stage { padding: 0; }
 
-.tabs { display: flex; margin: 16px 20px 0; border: var(--bd); border-radius: var(--radius); overflow: hidden; }
+.tabs { display: flex; flex-wrap: wrap; margin: 16px 20px 0; border: var(--bd); border-radius: var(--radius); overflow: hidden; }
+.preview-tabs { display: flex; }
+.preview-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; padding: 4px 8px; }
+.preview-controls .zoom { font-size: 12px; }
+.preview-controls .zoom output { min-width: 40px; }
 .tab {
   font: inherit; font-size: 12px; letter-spacing: .06em;
   padding: 6px 16px; border: 0; cursor: pointer;
@@ -221,9 +238,7 @@ kbd {
 .tab + .tab { border-left: var(--bd); }
 .tab:hover { background: var(--sunken); }
 .tab.on { background: var(--accent); color: #fff; }
-.weak-grid-btn { margin-left: auto; border: 0; border-left: var(--bd); }
-.weak-grid-btn { border-radius: 0; }
-.weak-grid-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.weak-grid-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 .align-tools {
   margin: 10px 20px 0;
@@ -243,6 +258,10 @@ kbd {
 .align-tools .hint { margin: 0; }
 
 .viewport {
+  /* 隔离长图的固有尺寸，避免内容反向撑高正方形容器。 */
+  contain: size;
+  min-height: 0;
+  width: calc(100% - 40px);
   margin: 12px 20px 0;
   border: var(--bd);
   background: var(--sunken);
@@ -271,7 +290,7 @@ kbd {
 .zoom input { width: 110px; }
 
 .probe {
-  margin: 8px 20px 20px;
+  margin: 14px 20px 0;
   padding: 8px 12px;
   border: var(--bd-thin);
   background: var(--sunken);
@@ -286,13 +305,13 @@ kbd {
 .probe .hl { color: var(--text); font-weight: 700; }
 
 .cell-editor {
-  margin: -10px 20px 20px;
+  margin: 0 20px 16px;
   padding: 12px;
   border: var(--bd-thin);
   border-top: 0;
   background: var(--surface);
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(120px, 180px) auto auto auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
   gap: 8px;
   font-size: 12px;
@@ -306,28 +325,32 @@ kbd {
   line-height: 1.6;
 }
 
-@media (max-width: 700px) {
-  .cell-editor { grid-template-columns: 1fr 1fr; }
-  .cell-editor > span { grid-column: 1 / -1; }
-}
+.cell-editor > span, .cell-editor > select { grid-column: 1 / -1; }
+.cell-editor > select { min-width: 0; }
 
 /* ---------------- fields ---------------- */
 
-.pad { padding: 18px 20px; border-bottom: var(--bd); }
+.pad { padding: 16px var(--panel-padding); border-bottom: var(--bd); }
 .pad-x { padding-left: 20px; padding-right: 20px; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.physical-size-field { margin-bottom: 12px; }
+.physical-size-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+#beadSizeMm { flex: 0 0 82px; width: 82px; min-width: 0; }
+#physicalSize { flex: 1; min-width: 0; font-size: 13px; font-weight: 400; letter-spacing: .04em; line-height: 1.5; color: var(--n700); overflow-wrap: anywhere; }
 .field > label, .field > span {
-  font-size: 12px; letter-spacing: .04em; color: var(--n700);
+  font-size: 12px; letter-spacing: normal; color: var(--n700);
 }
 
 input[type="number"], input[type="text"], select {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--font-control);
+  min-height: var(--control-height);
+  line-height: 1.4;
+  padding: 8px 10px;
   border: var(--bd);
   background: var(--surface);
   color: var(--text);
@@ -349,7 +372,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-v
 .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .stepper button {
   font: inherit; font-size: 15px; line-height: 1;
-  width: 30px; flex: none; border: 0; cursor: pointer;
+  width: 36px; flex: none; border: 0; cursor: pointer;
   background: var(--sunken); color: var(--text);
 }
 .stepper button:first-child { border-right: var(--bd); }
@@ -360,22 +383,23 @@ input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-v
 .field.mini input { text-align: center; font-family: var(--mono); }
 
 input[type="range"] { width: 100%; accent-color: var(--accent); }
+#thresh:disabled { accent-color: var(--n400); opacity: .45; cursor: not-allowed; }
 
 .range-hd {
   display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 12px; letter-spacing: .04em; color: var(--n700); margin-bottom: 8px;
+  font-size: 12px; letter-spacing: normal; color: var(--n700); margin-bottom: 8px;
 }
 .range-hd output { color: var(--text); font-weight: 700; }
 
-.hint { margin: 8px 0 0; font-size: 11px; line-height: 1.6; color: var(--n600); }
+.hint { margin: 8px 0 0; font-size: var(--font-caption); line-height: 1.6; color: var(--n600); }
 
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
-.check input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); flex: none; }
+.check input[type="checkbox"] { margin: 0; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
 .check + .check { margin-top: 10px; }
 .k-check { margin-top: 14px; }
 .k-input { width: 68px !important; padding: 3px 6px; font-family: var(--mono); }
 
-.opts { display: grid; gap: 14px; }
+.opts { display: grid; gap: var(--space-md); }
 
 /* ---------------- palette ---------------- */
 
@@ -392,6 +416,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .pal-row:last-child { border-bottom: 0; }
 .pal-row:hover { background: var(--sunken); }
 .pal-row.iso { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pal-row.merge-result { background: color-mix(in srgb, var(--accent) 16%, var(--surface, var(--sunken))); box-shadow: inset 3px 0 0 var(--accent); }
+.pal-row.merge-result .pal-code { color: var(--accent); }
 .pal-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); margin: 0; }
 .pal-sw { width: 34px; height: 24px; border: var(--bd); border-radius: var(--radius-sm); }
 .pal-row input[type="text"] { padding: 4px 7px; font-size: 13px; }
@@ -453,3 +479,321 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   .busy .spin { animation-duration: 2.4s; }
 }
+
+/* 像素图的画面效果独立分区 */
+.panel-subtitle { margin: 0 0 14px; font-size: 14px; font-weight: 700; color: var(--text); }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* 独立逐格改色窗口 */
+body.editing-cells { overflow: hidden; }
+.edit-dialog { width: min(1220px, calc(100vw - 32px)); max-width: none; height: min(900px, calc(100dvh - 32px)); max-height: none; padding: 0; border: var(--bd); border-radius: 10px; background: var(--surface); color: var(--text); }
+.edit-dialog::backdrop { background: rgba(0,0,0,.45); }
+.edit-dialog[open] { display: flex; flex-direction: column; }
+.edit-dialog-head { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: var(--bd); flex-wrap: wrap; }
+.edit-dialog-head h2 { font-size: 18px; margin: 0; }
+.edit-dialog-head .hint { margin: 0; flex: 1; }
+.edit-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; border-bottom: var(--bd); font-size: 12px; }
+.edit-toolbar select { width: auto; }
+.edit-toolbar input[type=range] { width: 110px; }
+.edit-workspace { display: grid; grid-template-columns: minmax(0,1fr) 280px; flex: 1; min-height: 0; }
+.edit-preview-area { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.edit-preview-area > .edit-viewport { width: 100%; height: 100%; }
+.edit-reference { position: absolute; left: 12px; bottom: 12px; width: 180px; height: 180px; overflow: hidden; border-radius: 4px; box-shadow: 0 0 0 1px #0003, 0 6px 10px -2px #0008, 0 3px 5px #0004; background: white; }
+.edit-reference canvas { display: block; width: 180px; height: 180px; }
+.edit-reference span { position: absolute; left: 6px; top: 6px; padding: 2px 5px; border-radius: 3px; background: #0009; color: white; font-size: 11px; pointer-events: none; }
+.edit-viewport { overflow: auto; background: var(--sunken); touch-action: none; overscroll-behavior: contain; }
+.edit-canvas-wrap { display: grid; place-items: center; min-width: 100%; min-height: 100%; width: max-content; padding: 16px; }
+#editCanvas { display: block; image-rendering: pixelated; cursor: crosshair; touch-action: none; }
+
+.edit-controls { min-width: 0; overflow: auto; border-left: var(--bd); padding: 16px; }
+.edit-controls > .hint { margin: 0 0 12px; }
+.edit-controls .probe { margin: 0; }
+.edit-controls .cell-editor { margin: 0; }
+@media (max-width: 700px) {
+  .edit-dialog { width: 100vw; height: 100dvh; border: 0; border-radius: 0; margin: 0; }
+  .edit-dialog-head { padding: 10px 12px; gap: 8px; }
+  .edit-dialog-head .hint { flex-basis: 100%; order: 2; }
+  .edit-dialog-head h2 { margin-right: auto; }
+  .edit-toolbar { gap: 8px; padding: 8px 12px; }
+  .edit-workspace { grid-template-columns: 1fr; grid-template-rows: minmax(120px,1fr) auto; }
+  .edit-controls { border-left: 0; border-top: var(--bd); padding: 10px 12px; max-height: 38dvh; }
+  .edit-controls > .hint { margin-bottom: 6px; }
+  .edit-controls .probe { min-height: 0; padding: 6px 8px; }
+  .edit-controls .cell-editor { padding: 8px; }
+}
+
+.edit-viewport.dragging, .edit-viewport.dragging #editCanvas { cursor: grabbing; }
+
+.edit-gesture-hint { margin-right: auto; white-space: nowrap; }
+.edit-toolbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-left: auto; }
+.edit-zoom-control { display: inline-flex; align-items: center; gap: 10px; }
+.edit-zoom-control output { min-width: 32px; }
+.edit-toolbar-actions > label, .edit-toolbar-actions > button { white-space: nowrap; }
+@media (max-width: 700px) {
+  .edit-gesture-hint { white-space: normal; }
+  .edit-toolbar-actions { justify-content: flex-start; margin-left: 0; gap: 8px; }
+}
+.edit-color-picker { grid-column: 1 / -1; display: flex; border: 1px solid var(--accent); border-radius: 6px; overflow: hidden; }
+.edit-color-picker select { flex: 1; width: 0; min-width: 0; border: 0; border-radius: 0; }
+.edit-color-picker .btn { flex: 0 0 40px; display: grid; place-items: center; padding: 6px; border: 0; border-radius: 0; }
+#pickCellColorBtn[aria-pressed=true] { filter: brightness(.75); box-shadow: inset 0 0 0 2px currentColor; }
+#pickColorStatus { margin: 0; font-size: 12px; }
+.edit-viewport.picking-color, .edit-viewport.picking-color #editCanvas { cursor: url("../assets/eyedropper-cursor.svg") 3 29, crosshair; }
+.edit-viewport.dragging #editCanvas { cursor: grabbing; }
+
+/* 改色弹窗字体层级：标题 20 / 操作 14 / 辅助 13。 */
+.edit-dialog { font-family: var(--font-body); font-size: 14px; font-weight: 400; line-height: 1.5; }
+.edit-dialog-head h2 { font-size: 18px; font-weight: 600; line-height: 1.4; }
+.edit-dialog-head .hint { font-size: 13px; font-weight: 400; line-height: 1.5; color: var(--n700); }
+.edit-dialog .btn { font-size: var(--font-control); font-weight: 500; line-height: 1.4; min-height: var(--control-height); }
+.edit-dialog #doneCellEditBtn { font-weight: 600; }
+.edit-toolbar { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.edit-gesture-hint { font-size: 13px; color: var(--n700); }
+.edit-gesture-hint strong { font-weight: 500; }
+.edit-zoom-control output { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--n700); }
+.edit-controls .probe { font-family: var(--font-body); font-size: 13px; line-height: 1.6; gap: 6px 10px; }
+.edit-controls .probe .hl { font-weight: 600; font-variant-numeric: tabular-nums; }
+.edit-controls .probe-color { font-size: 14px; font-weight: 600; color: var(--text); }
+.edit-controls .probe-hex { font-size: 12px; font-family: var(--mono); }
+.edit-controls .probe-note { flex-basis: 100%; font-size: 13px; font-weight: 400; color: var(--n700); }
+.edit-controls .cell-editor { font-size: 14px; line-height: 1.5; }
+.edit-controls #cellEditLabel { font-weight: 500; color: var(--text); }
+.edit-color-picker select { font-size: 14px; font-weight: 400; line-height: 1.5; min-height: 38px; }
+.edit-dialog #pickColorStatus { font-size: 13px; font-weight: 400; line-height: 1.5; }
+@media (max-width: 700px) {
+  .edit-dialog-head h2 { font-size: 18px; }
+  .edit-color-picker select { font-size: 16px; }
+}
+
+.edit-selection-summary { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }
+.edit-dialog #clearCellSelectionBtn { font-size: 13px; font-weight: 400; padding: 4px 6px; min-height: 32px; }
+
+/* 标题栏直接切换处理模式。 */
+.mode-heading { align-items: center; }
+.mode-heading #mode { width: auto; max-width: calc(100% - 30px); min-height: 38px; font-family: var(--font-body); font-size: 13px; font-weight: 400; line-height: 1.2; padding: 6px 28px 6px 10px; }
+.mode-heading #mode:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 主工作区与参数区独立滚动，输出图纸始终紧接工作区。 */
+.mode-heading #modeHint { flex: 1; min-width: 150px; margin: 0; color: var(--n700); }
+.mode-heading .sec-hd-actions { flex-shrink: 0; }
+@media (min-width: 1081px) {
+  .layout { height: clamp(440px, calc(100dvh - 276px), 860px); align-items: stretch; }
+  .col-side { min-height: 0; overflow-y: auto; overscroll-behavior-y: auto; scrollbar-gutter: stable; }
+  .col-side .palette { max-height: none; overflow: visible; }
+  .col-canvas { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .mode-heading { flex: none; }
+  .col-canvas .drop { min-height: 0; overflow: auto; }
+  .stage:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-bottom: 14px; }
+  .stage > .tabs, .stage > .align-tools, .stage > .stage-bar { flex: none; }
+  .stage .viewport { flex: 1; min-height: 0; aspect-ratio: auto; }
+}
+@media (max-width: 700px) {
+  .mode-heading #modeHint { flex-basis: 100%; order: 2; }
+  .mode-heading .sec-hd-actions { margin-left: 0; }
+}
+
+/* 右侧参数按尺寸、效果、色卡和输出分组。 */
+
+.col-side #pixelTools { padding-top: 0; }
+.palette-merge-settings { margin-top: 16px; }
+.palette-editor-heading h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+.col-side .palette { max-height: 300px; overflow-y: auto; }
+.col-side .palette-edit-entry { padding-top: 16px; padding-bottom: 16px; }
+.palette-editor-heading { flex-wrap: wrap; }
+.palette-editor-heading #paletteHint { flex-basis: 100%; margin: 0; padding: 0; }
+.palette-edit-entry .cell-edit-launch { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 44px; padding: 11px 16px; font-size: 14px; font-weight: 600; border-radius: 8px; background: #fff; border-color: var(--accent); color: var(--accent); }
+.palette-edit-entry .cell-edit-launch:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-700); color: var(--accent-700); }
+.cell-edit-launch svg { flex-shrink: 0; }
+.cell-edit-launch-arrow { margin-left: auto; font-size: 18px; font-weight: 400; }
+.cell-edit-launch > span:first-of-type { margin-right: auto; }
+
+/* 导入后由正方形预览决定工作区高度，参数列表不撑高工作区。 */
+@media (min-width: 1081px) {
+  .layout:has(#stage:not([hidden])) { height: auto; }
+  .layout:has(#stage:not([hidden])) .col-side { contain: size; }
+  .stage:not([hidden]) { flex: none; }
+  .stage .viewport { flex: none; width: calc(100% - 40px); height: auto; aspect-ratio: 1 / 1; }
+}
+
+#viewport { touch-action: none; overscroll-behavior: auto; }
+
+.dither-panel { margin-top: 16px; border: var(--bd); border-radius: 6px; padding: 12px; font-size: 13px; }
+.edit-card-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.5; }
+.dither-panel > label { display: block; margin-top: 12px; }
+.dither-color-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.dither-color-row .sw { width: 18px; height: 24px; flex: none; border: var(--bd); border-radius: 3px; }
+.dither-color-row select { width: 0; flex: 1; min-width: 0; }
+.dither-tools { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 16px; }
+.dither-panel .edit-selection-summary, .dither-panel .range-hd { margin-top: 12px; }
+.dither-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+#ditherApply { grid-column: 1 / -1; }
+.dither-panel button[aria-pressed=true] { background: var(--accent); color: white; }
+.edit-viewport.dither-brush #editCanvas { cursor: crosshair; }
+.edit-viewport.dither-picking #editCanvas { cursor: url('../assets/eyedropper-cursor.svg') 3 29, crosshair; }
+@media (max-width: 700px) { .dither-color-row select, .dither-tools select { font-size: 16px; } }
+
+.edit-action-title { grid-column: 1 / -1; font-size: 14px; font-weight: 600; margin-top: 4px; color: var(--text); }
+.edit-toolbar #selectionTool, .edit-toolbar #selectionBrush { font-size: 14px; }
+
+/* 顶栏分为手势说明、选区工具、显示设置三组。 */
+.edit-toolbar .edit-gesture-hint { white-space: normal; flex: 1 1 220px; }
+.edit-toolbar-actions { gap: 14px; }
+.edit-tool-group, .edit-display-group { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; position: relative; padding-left: 15px; }
+.edit-tool-group::before, .edit-display-group::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 1px; height: 22px; background: var(--divider); }
+.edit-toolbar #clearCellSelectionBtn { font-size: 14px; font-weight: 500; min-height: 34px; padding: 6px 10px; }
+.edit-viewport.space-pan, .edit-viewport.space-pan #editCanvas { cursor: grab; }
+.edit-viewport.dragging, .edit-viewport.dragging #editCanvas { cursor: grabbing; }
+@media (max-width: 700px) {
+  .edit-toolbar .edit-gesture-hint { flex-basis: 100%; }
+  .edit-toolbar-actions { justify-content: flex-start; gap: 10px; }
+}
+
+.edit-controls .cell-editor.dither-panel { border: var(--bd); border-radius: 6px; padding: 12px; margin: 0; gap: 8px; }
+.cell-editor > .edit-card-title, .cell-editor > .hint, .cell-editor > .probe, .cell-editor > .dither-color-row { grid-column: 1 / -1; }
+.edit-controls .cell-editor .probe { border-radius: 4px; margin: 0; }
+.edit-controls .cell-editor .probe[hidden] { display: none; }
+.edit-dialog-head #cellEditLabel { font-size: 13px; font-weight: 500; color: var(--n700); }
+.edit-toolbar .edit-gesture-hint { white-space: nowrap; flex: 1 1 auto; font-size: 12px; }
+@media (max-width: 700px) { .edit-toolbar .edit-gesture-hint { font-size: 11px; } }
+
+/* 右侧功能卡片共用同一套排版与控件尺寸。 */
+.edit-controls .edit-card { display: flex; flex-direction: column; gap: 8px; margin: 0 0 16px; padding: 16px; border: var(--bd); border-radius: 6px; background: var(--surface); font-size: 13px; line-height: 1.5; color: var(--text); }
+.edit-controls .edit-card:last-child { margin-bottom: 0; }
+.edit-card .edit-card-title { font-size: 14px; line-height: 1.5; font-weight: 600; color: var(--text); }
+.edit-card > .hint, .edit-card #pickColorStatus { margin: 0; font-size: 12px; line-height: 1.6; font-weight: 400; color: var(--n700); }
+.edit-card > label, .edit-card > .range-hd { margin: 4px 0 0; font-size: 13px; font-weight: 400; color: var(--text); }
+.edit-card .range-hd { letter-spacing: normal; }
+.edit-card .dither-color-row { margin: 0; gap: 8px; }
+.edit-card .dither-color-row .sw { width: 20px; height: 28px; }
+.edit-card .dither-color-row select { min-height: 36px; font-family: var(--font-body); font-size: 13px; font-weight: 400; }
+.edit-card .dither-color-row .btn { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+.edit-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.edit-card-actions .btn { width: 100%; min-height: 36px; font-size: 13px; }
+.edit-card .probe { margin: 0; padding: 8px; border-radius: 4px; }
+.edit-card .probe[hidden] { display: none; }
+.edit-card button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: white; }
+@media (max-width: 700px) { .edit-controls .edit-card { padding: 12px; } .edit-card .dither-color-row select { font-size: 16px; } }
+
+.pixel-export-dialog { width: min(440px, calc(100vw - 32px)); padding: 24px; border: var(--bd); border-radius: 10px; background: var(--surface); color: var(--text); }
+.pixel-export-dialog::backdrop { background: #0007; }
+.pixel-export-dialog h2 { margin: 0 0 20px; font-size: 18px; }
+.pixel-export-dialog > .field, .pixel-export-dialog > .grid-2 { margin-top: 16px; }
+.pixel-export-dialog [hidden] { display: none; }
+.pixel-export-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.export-options { margin-top: 20px; }
+.export-options .hint { margin: 6px 0 16px; }
+.export-dimensions { font-size: 13px; line-height: 1.6; margin: 16px 0 0; }
+.export-share-options { margin-top: 10px; }
+.export-watermark-field { margin-top: 12px; }
+
+.raw-wrap.selecting-unit { cursor: crosshair; touch-action: none; }
+.raw-wrap.selecting-unit .grid-overlay { visibility: hidden; }
+.unit-cell-box { position: absolute; pointer-events: none; border: 2px solid #1687ff; background: #1687ff30; box-sizing: border-box; }
+
+#paneRaw .grid-overlay { display: none; }
+.grid-setup-dialog .raw-wrap img { image-rendering: pixelated; }
+.grid-setup-dialog .edit-card input[type=number] { width: 100%; min-height: 36px; font-size: 14px; }
+.grid-setup-dialog #selectUnitCellBtn[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: white; }
+#closeGridSetupBtn { font-weight: 600; }
+
+.grid-size-panel .size-controls { margin-bottom: 16px; }
+.grid-size-panel #openUnitCellBtn { margin-bottom: 16px; }
+
+#cellEditDialog .edit-toolbar { align-items: center; padding: 12px 16px; gap: 16px; }
+#cellEditDialog .edit-gesture-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; flex: 1 1 auto; order: 0; font-size: 11px; line-height: 1.5; }
+#cellEditDialog .edit-toolbar-actions { width: auto; justify-content: flex-end; margin-left: auto; }
+#cellEditDialog .edit-tool-group { padding-left: 0; }
+#cellEditDialog .edit-tool-group::before { display: none; }
+.selection-tool-buttons { display: inline-flex; gap: 4px; padding: 3px; background: var(--sunken); border-radius: 6px; }
+.selection-tool-buttons .btn[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: white; }
+#cellEditDialog .edit-selection-summary { gap: 8px; }
+.edit-advanced { border: var(--bd); border-radius: 6px; margin-bottom: 14px; }
+.edit-advanced > summary { padding: 14px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.edit-advanced > summary span { float: right; font-size: 12px; font-weight: 400; color: var(--n700); }
+.edit-controls .edit-advanced .edit-card { border: 0; margin: 0; padding-top: 0; }
+.edit-reset { color: var(--n700); font-size: 12px; }
+.edit-reset summary { cursor: pointer; padding: 4px 0; }
+.edit-reset .btn { margin-top: 8px; }
+
+.edit-history-group { display: flex; align-items: center; gap: 8px; padding-left: 15px; border-left: var(--bd); }
+#cellEditDialog .edit-controls { display: flex; flex-direction: column; }
+#cellEditDialog .edit-controls > * { flex-shrink: 0; }
+#cellEditDialog .edit-reset { margin-top: auto; padding-top: 12px; }
+#cellEditDialog .edit-reset .btn { width: 100%; }
+
+.cell-color-picker { position: relative; flex: 1; min-width: 0; }
+.cell-color-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--control-height); padding: 4px 10px; border: var(--bd); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.cell-color-toggle > span:nth-child(2) { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-color-toggle:disabled { opacity: .5; cursor: default; }
+.cell-color-options { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; width: 100%; max-height: 240px; overflow-y: auto; padding: 4px; background: var(--surface); border: var(--bd); border-radius: 6px; box-shadow: 0 4px 16px #0002; }
+.cell-color-option { display: flex; width: 100%; align-items: center; gap: 10px; padding: 6px; border: 0; border-radius: 3px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.cell-color-option:hover, .cell-color-option:focus, .cell-color-option[aria-selected=true] { background: var(--sunken); }
+.cell-color-picker .sw { flex-shrink: 0; }
+
+#cellEditDialog .gesture-item { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+#cellEditDialog .gesture-label { color: var(--n600); min-width: 26px; }
+#cellEditDialog .gesture-label { min-width: 0; }
+#cellEditDialog .gesture-item > span:last-child { display: inline-flex; align-items: center; gap: 4px; }
+#cellEditDialog .edit-gesture-hint kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 21px; margin: 0; padding: 0 5px; border: 1px solid var(--n300); border-bottom-width: 2px; border-radius: 4px; background: var(--surface); color: var(--n700); font: 11px var(--font-body); box-shadow: none; }
+#cellEditDialog .key-plus { color: var(--n600); font-size: 10px; }
+#cellEditDialog .edit-tool-group, #cellEditDialog .edit-history-group, #cellEditDialog .edit-display-group { gap: 6px; }
+#cellEditDialog .edit-toolbar-actions { gap: 12px; }
+#cellEditDialog .edit-toolbar .btn { border-radius: 5px; }
+#cellEditDialog .selection-tool-buttons { padding: 2px; gap: 2px; }
+@media (max-width: 700px) {
+  #cellEditDialog .edit-toolbar { padding: 10px 12px; gap: 12px; }
+  #cellEditDialog .edit-gesture-hint { gap: 6px 12px; flex-basis: 100%; }
+  #cellEditDialog .edit-toolbar-actions { width: 100%; padding-top: 10px; border-top: var(--bd-thin); gap: 10px; }
+}
+
+
+/* Shared control geometry across the page, grid calibration and color editor. */
+select { appearance: none; padding-right: 32px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%237b817e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+select:disabled, input:disabled { opacity: .5; cursor: not-allowed; }
+.sec-hd-actions { align-items: center; }
+.field { gap: var(--space-sm); }
+.grid-2, .grid-4 { gap: var(--space-md); }
+input[type=number], output { font-variant-numeric: tabular-nums; }
+.stepper input { min-height: calc(var(--control-height) - 2px); border-radius: 0; }
+.tab { min-height: var(--control-height); font-size: var(--font-control); letter-spacing: normal; }
+.icon-btn { width: var(--control-height); height: var(--control-height); }
+.undo-merge { display: inline-flex; align-items: center; justify-content: center; width: var(--control-height); }
+.undo-merge svg { display: block; flex-shrink: 0; }
+.mode-heading #mode { min-height: var(--control-height); }
+.range-hd { margin-bottom: var(--space-sm); }
+input[type=range] { margin: 0; vertical-align: middle; }
+.pal-row { gap: 12px; padding: 8px var(--panel-padding); min-height: 44px; }
+.pal-code { font-size: 13px; }
+.pal-row input[type=text] { min-height: 32px; }
+.edit-toolbar select, .edit-toolbar .btn, .edit-toolbar #clearCellSelectionBtn { min-height: var(--control-height); font-size: var(--font-control); }
+.edit-toolbar #selectionBrush { font-size: var(--font-control); }
+.edit-card .dither-color-row .sw { width: 20px; height: 20px; border-radius: var(--radius-sm); }
+.cell-color-toggle { font-size: var(--font-control); line-height: 1.4; }
+.cell-color-option { min-height: var(--control-height); font-size: var(--font-control); border-radius: var(--radius-sm); }
+.pixel-export-dialog h2 { font-size: 18px; font-weight: 600; }
+.edit-history-group, .edit-display-group { padding-left: 12px; }
+@media (max-width: 700px) {
+  :root { --panel-padding: 16px; }
+  .topbar { padding: 16px; gap: 16px; }
+  .drop { padding: 16px; }
+  .drop-inner { padding: 32px 20px; }
+  .edit-dialog-head, #cellEditDialog .edit-toolbar { padding: 12px 16px; }
+  .edit-controls { padding: 12px; }
+  .edit-controls .edit-card { padding: 12px; }
+  .pixel-export-dialog { padding: 20px; }
+  .chart .sec-hd-actions { width: 100%; margin-left: 0; }
+  .chart .sec-hd-actions .btn { flex: 1 1 auto; }
+  .physical-size-row { flex-wrap: wrap; gap: 8px; }
+  #cellEditDialog .edit-toolbar-actions { justify-content: flex-start; }
+}
+
+/* Labels and helper text use the same vertical rhythm as adjacent fields. */
+.field > .hint { margin-top: 0; }
+#pixelLineControls { margin-top: var(--space-md); }
+
+/* 分隔线按功能分组：同组字段用间距衔接，组间保留边界。 */
+.col-side:has(#pixelTools:not([hidden])) .grid-size-panel { border-bottom: 0; }
+#unitCellTools { border-bottom: 0; }
+#unitCellTools:not([hidden]) + .grid-size-panel { padding-top: 0; }
+.col-side > .opts:last-child { border-bottom: 0; }

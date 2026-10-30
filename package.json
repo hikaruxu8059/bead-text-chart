@@ -4,7 +4,8 @@
   "private": true,
   "description": "串珠文字图纸生成工具：纯浏览器端识别网格与配色，逐列生成可照着穿的文字图纸",
   "scripts": {
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node --test tests/*.test.cjs"
   },
   "engines": {
     "node": ">=18"

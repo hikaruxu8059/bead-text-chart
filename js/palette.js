@@ -76,7 +76,12 @@
     var cands = candidates(raw);
     var centers = opts.mode === 'k'
       ? greedyK(cands, Math.max(2, Math.min(MAX_COLORS, opts.k | 0)))
-      : greedy(cands, opts.thresh, MAX_COLORS);
+      : greedy(cands, opts.thresh, MAX_COLORS + (opts.coverAllColors ? 1 : 0));
+    // 像素转换在溢出时重新分配色板，避免高频近似色先占满全部位置。
+    // 多取一个候选用于判断是否溢出；未触及上限时保持原结果。
+    if (opts.coverAllColors && opts.mode !== 'k' && centers.length > MAX_COLORS) {
+      centers = greedyK(cands, MAX_COLORS);
+    }
     if (!centers.length) centers = [{ rgb: [0, 0, 0], lab: C.rgbToLab([0, 0, 0]) }];
 
     var labs = raw.map(C.rgbToLab);
@@ -183,7 +188,7 @@
 
   /**
    * custom = { merges: [ { labs: [lab, ...] }, ... ], names: [ { lab, name }, ... ] }
-   * 合并组按颜色就近匹配，所以调阈值后手动合并依然有效。
+   * 合并组只用于同一基础色卡；控制器在重新聚类改变色卡时清除旧合并。
    */
   function applyCustom(palette, cells, custom) {
     if (!custom) return { palette: palette, cells: cells };
@@ -196,6 +201,14 @@
 
     (custom.merges || []).forEach(function (g) {
       var members = [];
+      if (g.keys) {
+        // Explicit selections refer to the displayed palette, including library codes.
+        for (var index = 0; index < n; index++) {
+          if (g.keys.indexOf(palette[index].code || palette[index].hex) >= 0) members.push(index);
+        }
+        for (var member = 1; member < members.length; member++) union(members[0], members[member]);
+        return;
+      }
       // 每个被勾选的颜色只对应一个最近的基础色。不能用色差范围收集，
       // 否则未勾选但色相接近的相邻颜色也会被误并入。
       for (var j = 0; j < g.labs.length; j++) {

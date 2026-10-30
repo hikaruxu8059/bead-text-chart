@@ -26,92 +26,94 @@
 
   <!-- ================= 左：图纸 ================= -->
   <section class="col col-canvas">
-    <div class="sec-hd">
+    <div class="sec-hd mode-heading">
       <span class="sec-no">01</span>
-      <h2>图纸</h2>
+      <h2 id="modeHeading"><label for="mode">处理模式</label></h2>
+      <select id="mode" aria-labelledby="modeHeading" aria-describedby="modeHint" title="选择处理模式">
+        <option value="chart">图纸识别 → 文字图纸</option>
+        <option value="pixel">图片 → 像素图</option>
+      </select>
+      <p class="hint" id="modeHint">上传像素图，生成图纸或文字图纸</p>
       <div class="sec-hd-actions">
-        <button type="button" class="btn btn-ghost" id="demoBtn">用示例图纸</button>
         <button type="button" class="btn btn-secondary" id="pickBtn2">选择图片</button>
       </div>
     </div>
 
     <div class="drop" id="drop">
       <div class="drop-inner">
-        <strong>把图纸拖进来</strong>
+        <strong id="dropTitle">把图纸拖进来</strong>
         <p>支持 PNG / JPG / WebP，也可以直接 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴。<br>
-           建议使用清晰、端正的图纸，提前裁掉无关边框、标题和图例，方便识别。</p>
+           <span id="dropHint">建议使用清晰、端正的图纸，提前裁掉无关边框、标题和图例，方便识别。</span></p>
         <button type="button" class="btn btn-primary" id="pickBtn">选择图片</button>
       </div>
     </div>
 
     <div class="stage" id="stage" hidden>
-      <div class="tabs" role="tablist">
-        <button type="button" class="tab on" data-view="result" role="tab">识别结果</button>
-        <button type="button" class="tab" data-view="raw" role="tab">原图 + 网格</button>
+      <div class="tabs">
+        <div class="preview-tabs" role="tablist" aria-label="预览方式">
+        <button type="button" class="tab on" id="resultTab" data-view="result" role="tab" aria-selected="true" aria-controls="paneResult">识别结果</button>
+        <button type="button" class="tab" id="showRawBtn" data-view="raw" role="tab" aria-selected="false" aria-controls="paneRaw">原图</button>
+        </div>
+        <div class="preview-controls">
+        <div class="zoom">
+          <label for="zoom">格子大小</label>
+          <input type="range" id="zoom" min="0.1" max="26" step="0.1" value="10">
+          <output id="zoomOut" class="mono">10px</output>
+        </div>
+        <button type="button" class="btn btn-ghost" id="fitPreviewBtn">适合窗口</button>
         <button type="button" class="btn btn-ghost weak-grid-btn" id="weakGridBtn" aria-pressed="false">弱化网格</button>
-      </div>
-      <div class="align-tools" id="alignTools" hidden>
-        <strong>网格对齐微调</strong>
-        <label for="offsetX">水平</label>
-        <input type="number" id="offsetX" value="0" step="1">
-        <label for="offsetY">垂直</label>
-        <input type="number" id="offsetY" value="0" step="1">
-        <button type="button" class="btn btn-ghost" id="resetAlignBtn">归零</button>
-        <span class="hint">单位为原图像素；正数向右 / 向下移动红色网格。</span>
+        </div>
       </div>
 
-      <div class="viewport" id="viewport">
+
+      <div class="viewport" id="viewport" title="滚动查看画面；双指捏合或按住 Ctrl/⌘ 滚轮缩放">
         <div class="vp-pane" id="paneResult">
-          <canvas id="resultCanvas"></canvas>
+          <canvas id="resultCanvas" tabindex="0" aria-label="像素图，点击或按回车打开逐格改色"></canvas>
         </div>
         <div class="vp-pane" id="paneRaw" hidden>
           <div class="raw-wrap" id="rawWrap">
             <img id="rawImg" alt="图纸原图">
             <canvas id="gridCanvas" class="grid-overlay"></canvas>
+            <div id="unitCellBox" class="unit-cell-box" hidden></div>
           </div>
         </div>
       </div>
 
       <div class="stage-bar">
         <div class="stage-stats" id="stageStats"></div>
-        <div class="zoom">
-          <label for="zoom">格子大小</label>
-          <input type="range" id="zoom" min="3" max="26" step="1" value="10">
-          <output id="zoomOut" class="mono">10px</output>
-        </div>
+
       </div>
 
-      <div class="probe" id="probe">点击：单选 · 再次点击已选格：取消该格 · Shift / Ctrl / ⌘ + 点击：追加多选</div>
-      <div class="cell-editor" id="cellEditor">
-        <div class="cell-select-help">多选格子：按住 Shift / Ctrl / ⌘ 再点击其他格子；再次点击已选格可取消当前格。</div>
-        <span id="cellEditLabel">请点击识别结果中的格子</span>
-        <select id="cellColor" aria-label="修正后的颜色" disabled></select>
-        <button type="button" class="btn btn-primary" id="applyCellBtn" disabled>修改所选颜色</button>
-        <button type="button" class="btn btn-ghost" id="resetCellBtn" disabled>恢复所选</button>
-        <button type="button" class="btn btn-ghost" id="clearCellSelectionBtn" disabled>取消全部选择</button>
-      </div>
+
     </div>
   </section>
 
   <!-- ================= 右：参数 ================= -->
-  <section class="col col-side">
+  <section class="col col-side" tabindex="0" aria-label="图像参数与输出选项">
+
+
     <div class="sec-hd">
-      <span class="sec-no">02</span>
-      <h2>网格参数</h2>
+      <span class="sec-no" data-section-number="2">02</span>
+      <h2 id="gridTitle">网格参数</h2>
       <div class="sec-hd-actions">
-        <button type="button" class="btn btn-ghost" id="autoBtn" title="重新自动识别网格">自动识别</button>
+        <button type="button" class="btn btn-ghost" id="autoBtn" hidden title="重置为 52 列，行数按原图比例计算">重置像素尺寸</button>
       </div>
     </div>
 
-    <div class="pad grid-2">
-      <div class="field">
-        <label for="cols">列数（横向格数）</label>
-        <div class="stepper">
-          <button type="button" data-step="cols" data-d="-1" aria-label="减少列数">−</button>
-          <input type="number" id="cols" min="0" max="600" value="0">
-          <button type="button" data-step="cols" data-d="1" aria-label="增加列数">+</button>
-        </div>
+    <div class="pad" id="unitCellTools">
+      <div class="field chart-sampling-field">
+        <label for="chartSampling">取色方式</label>
+        <select id="chartSampling" aria-describedby="chartSamplingHint">
+          <option value="dominant" selected>格内主色（默认）</option>
+          <option value="center">中心取色</option>
+        </select>
+        <p class="hint" id="chartSamplingHint">格内主色：适合模糊或压缩过的图纸。中心取色：适合清晰且格子中心没有文字的像素图。</p>
       </div>
+    </div>
+
+    <div class="pad grid-size-panel">
+      <button type="button" class="btn btn-ghost" id="openUnitCellBtn">框选单位格 / 网格对齐</button>
+      <div class="grid-2 size-controls">
       <div class="field">
         <label for="rows">行数（纵向格数）</label>
         <div class="stepper">
@@ -120,9 +122,68 @@
           <button type="button" data-step="rows" data-d="1" aria-label="增加行数">+</button>
         </div>
       </div>
+      <div class="field">
+        <label for="cols">列数（横向格数）</label>
+        <div class="stepper">
+          <button type="button" data-step="cols" data-d="-1" aria-label="减少列数">−</button>
+          <input type="number" id="cols" min="0" max="600" value="0">
+          <button type="button" data-step="cols" data-d="1" aria-label="增加列数">+</button>
+        </div>
+      </div>
+      </div>
+      <label class="check"><input type="checkbox" id="keepRatio" checked><span>保持原图比例（修改行数或列数时联动）</span></label>
     </div>
 
-    <div class="pad">
+    <div class="pad" id="pixelTools" hidden>
+      <div class="field physical-size-field">
+        <label for="beadSizeMm">格子大小（mm）</label>
+        <div class="physical-size-row">
+        <input type="number" id="beadSizeMm" min="0.01" step="any" placeholder="mm" inputmode="decimal" aria-describedby="physicalSize">
+        <output id="physicalSize" for="beadSizeMm cols rows" aria-live="polite">输入格子大小后计算成品宽度和高度。</output>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="pixelGrid" checked><span>预览显示网格</span></label>
+    </div>
+
+
+
+    <section class="pixel-effects" id="pixelEffects" aria-labelledby="pixelEffectsTitle" hidden>
+      <div class="sec-hd">
+        <span class="sec-no">03</span>
+        <h2 id="pixelEffectsTitle">画面效果</h2>
+      </div>
+      <div class="pad">
+      <div class="field">
+        <label for="pixelSampling" class="sr-only">选择画面效果</label>
+        <select id="pixelSampling" aria-describedby="pixelSamplingHint">
+          <option value="balanced" selected>柔和清晰（默认）</option>
+          <option value="lines">线条鲜明</option>
+        </select>
+        <p class="hint" id="pixelSamplingHint">柔和清晰：颜色过渡自然，同时保留细线。线条鲜明：色块分界更清楚，线条更突出。细节不足时，可适当增加行列数。</p>
+      </div>
+      <div id="pixelLineControls">
+        <div class="range-hd"><label for="pixelLineStrength">线条清晰度</label><output id="pixelLineStrengthOut" for="pixelLineStrength">65</output></div>
+        <input type="range" id="pixelLineStrength" min="0" max="100" step="1" value="65">
+        <p class="hint">数值越小，过渡越柔和；数值越大，细线越鲜明。默认 65。只调整细线，其他区域保持柔和过渡；相邻数值的效果可能相同。</p>
+      </div>
+      </div>
+    </section>
+
+    <div class="sec-hd">
+      <span class="sec-no" data-section-number="3">03</span>
+      <h2>色卡</h2>
+    </div>
+
+    <div class="pad library-tools">
+      <div class="field">
+        <label for="colorLibrary">选择色卡</label>
+        <select id="colorLibrary">
+          <option value="none">自由配色（不限制色号）</option>
+          <option value="mard221" selected>MARD 221 色（公开参考）</option>
+          <option value="mard291">MARD 291 色（公开参考）</option>
+        </select>
+      </div>
+      <div class="palette-merge-settings">
       <div class="range-hd">
         <label for="thresh">相近色合并强度</label>
         <output id="threshOut" class="mono">12</output>
@@ -135,47 +196,52 @@
         <span>固定颜色数量</span>
         <input type="number" id="kNum" min="2" max="64" value="12" class="k-input" disabled>
       </label>
-      <label class="check k-check">
-        <span>并入少于</span>
-        <input type="number" id="minCount" min="1" max="99" value="3" class="k-input">
-        <span>颗的杂色</span>
-      </label>
-      <p class="hint">图案边缘的过渡格常被单独当成一种颜色，并掉更好读。填 1 表示不处理。</p>
-    </div>
-
-    <div class="sec-hd">
-      <span class="sec-no">03</span>
-      <h2>色卡命名</h2>
-      <div class="sec-hd-actions">
-        <button type="button" class="btn btn-ghost undo-merge" id="undoMergeBtn" title="撤销上一次颜色合并" aria-label="撤销上一次颜色合并" disabled>↶</button>
-        <button type="button" class="btn btn-ghost" id="mergeBtn" disabled>合并所选</button>
       </div>
     </div>
 
+    <div class="sec-hd palette-editor-heading">
+      <h3>编辑色卡</h3>
+      <span class="sec-meta" id="paletteCount" aria-live="polite">0 色</span>
+      <div class="sec-hd-actions">
+        <button type="button" class="btn btn-ghost undo-merge" id="undoMergeBtn" title="撤销上一次颜色合并" aria-label="撤销上一次颜色合并" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5 4 10l5 5"/><path d="M4 10h10a5 5 0 0 1 0 10h-3"/></svg></button>
+        <button type="button" class="btn btn-ghost" id="mergeBtn" disabled>合并所选</button>
+      </div>
+      <p class="hint" id="paletteHint">改名后文字图纸实时更新；勾选两个及以上色块可合并为同一种珠子。</p>
+    </div>
+
     <div class="palette" id="palette"></div>
-    <p class="hint pad-x" id="paletteHint">改名后文字图纸实时更新；勾选两个及以上色块可合并为同一种珠子。</p>
+    <div class="pad palette-edit-entry">
+      <button type="button" class="btn cell-edit-launch" id="openCellEditorBtn" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/><path d="M9 9h6v6H9z" fill="currentColor" stroke="none"/></svg>
+        <span>逐格改色</span><span class="cell-edit-launch-arrow" aria-hidden="true">→</span>
+      </button>
+    </div>
+
 
     <div class="sec-hd">
-      <span class="sec-no">04</span>
+      <span class="sec-no" data-section-number="4">04</span>
       <h2>输出选项</h2>
     </div>
     <div class="pad opts">
       <div class="field">
-        <label for="colDir">列的编号方向</label>
+        <label for="outputAxis">编号与输出方式</label>
+        <select id="outputAxis"><option value="column">按列</option><option value="row">按行</option></select>
+      </div>
+      <div class="field" id="horizontalOrderField">
+        <label for="colDir" id="colDirLabel">列的编号方向</label>
         <select id="colDir">
-          <option value="ltr">从左到右（第 1 列在最左）</option>
-          <option value="rtl">从右到左（第 1 列在最右）</option>
+          <option value="ltr">从左到右</option>
+          <option value="rtl">从右到左</option>
         </select>
       </div>
       <div class="field">
-        <label for="rowDir">每列穿珠顺序</label>
+        <label for="rowDir" id="rowDirLabel">每列串珠顺序</label>
         <select id="rowDir">
           <option value="btt">从下往上</option>
           <option value="ttb">从上往下</option>
         </select>
       </div>
-      <label class="check"><input type="checkbox" id="optPerCol" checked><span>输出「每列各色用量」</span></label>
-      <label class="check"><input type="checkbox" id="optBold" checked><span>列号用粗体（Markdown）</span></label>
+      <label class="check"><input type="checkbox" id="optPerCol" checked><span id="perLineLabel">输出「每列各色用量」</span></label>
     </div>
   </section>
 </main>
@@ -183,15 +249,13 @@
 <!-- ================= 下：文字图纸 ================= -->
 <section class="chart">
   <div class="sec-hd">
-    <span class="sec-no">05</span>
+    <span class="sec-no" data-section-number="5">05</span>
     <h2>文字图纸</h2>
     <span class="sec-meta" id="chartMeta">等待图纸</span>
     <div class="sec-hd-actions">
-      <button type="button" class="btn btn-ghost" id="copyBtn" title="将当前文字图纸复制到剪贴板，可粘贴到笔记或聊天中">复制</button>
-      <button type="button" class="btn btn-ghost" id="csvBtn" title="导出颜色矩阵 CSV，可在 Excel 等表格软件中逐格核对颜色">导出 CSV</button>
-      <button type="button" class="btn btn-ghost" id="pngBtn" title="保存识别结果的 PNG 图片，方便与原图对照">导出识别图</button>
+      <button type="button" class="btn btn-ghost" id="excelBtn" title="导出带单元格颜色、色号和色卡用量的 Excel 文件">导出 Excel</button>
+      <button type="button" class="btn btn-secondary" id="pngBtn" title="选择分享查看或实际尺寸打印，导出 PNG">下载 图纸.png</button>
       <button type="button" class="btn btn-secondary" id="txtBtn" title="将当前文字图纸保存为纯文本文件">下载 文字图纸.txt</button>
-      <button type="button" class="btn btn-primary" id="mdBtn" title="保存为 Markdown 文件，可在支持 Markdown 的软件中排版查看">下载 文字图纸.md</button>
     </div>
   </div>
   <pre id="chartOut" class="chart-out">上传图纸后，这里会生成每列的穿珠顺序与用量，照着就能穿。</pre>
@@ -202,14 +266,175 @@
   <span class="mono" id="perfInfo"></span>
 </footer>
 
+<dialog id="gridSetupDialog" class="edit-dialog grid-setup-dialog" aria-labelledby="gridSetupTitle" aria-describedby="unitCellHint">
+  <div class="edit-dialog-head">
+    <h2 id="gridSetupTitle">单位格与网格对齐</h2>
+    <span class="hint">调整后实时更新图纸</span>
+    <button type="button" class="btn btn-primary" id="closeGridSetupBtn">完成</button>
+  </div>
+  <div class="edit-toolbar">
+    <span class="edit-gesture-hint">取消框选后拖动画布；Ctrl/⌘ + 滚轮缩放</span>
+    <div class="edit-toolbar-actions">
+      <div class="edit-tool-group">
+        <label for="unitCellSpan">校准范围</label>
+        <select id="unitCellSpan"><option value="1">1 × 1 格</option><option value="5">5 × 5 格</option><option value="10">10 × 10 格</option></select>
+        <button type="button" class="btn btn-ghost" id="selectUnitCellBtn" aria-pressed="false">框选单位格</button>
+      </div>
+      <div class="edit-display-group">
+        <div class="edit-zoom-control"><label for="gridSetupZoom">缩放</label><input type="range" id="gridSetupZoom" min="0.1" max="26" step="0.1" value="10"><output id="gridSetupZoomOut">10px</output></div>
+        <button type="button" class="btn btn-ghost" id="gridSetupFitBtn">适合窗口</button>
+      </div>
+    </div>
+  </div>
+  <div class="edit-workspace">
+    <div class="edit-preview-area">
+      <div class="edit-viewport" id="gridSetupViewport" tabindex="0" aria-label="单位格框选与网格对齐预览">
+        <div class="edit-canvas-wrap" id="gridSetupCanvasWrap"></div>
+      </div>
+    </div>
+    <aside class="edit-controls">
+      <section class="edit-card" aria-labelledby="unitCellTitle">
+        <h3 class="edit-card-title" id="unitCellTitle">单位格</h3>
+        <p class="hint" id="unitCellHint" aria-live="polite">选择校准范围后，框出对应数量的完整格子。5 × 5 或 10 × 10 格可减少框选误差。</p>
+        <label for="unitCellSize">单位格边长（原图像素）</label>
+        <input type="number" id="unitCellSize" min="0.1" step="0.1" inputmode="decimal" placeholder="框选后可微调">
+        <p class="hint">支持 0.1 像素微调，宽高始终相等。</p>
+        <p class="hint">按 Esc 取消框选，再按一次关闭弹窗。</p>
+      </section>
+      <section class="edit-card" id="alignTools" aria-labelledby="gridAlignTitle">
+        <h3 class="edit-card-title" id="gridAlignTitle">网格对齐</h3>
+        <p class="hint">每次微调 0.1 个原图像素；正数向右 / 向下移动绿色网格。</p>
+        <label for="offsetX">水平偏移</label>
+        <input type="number" id="offsetX" value="0" step="0.1" inputmode="decimal">
+        <label for="offsetY">垂直偏移</label>
+        <input type="number" id="offsetY" value="0" step="0.1" inputmode="decimal">
+        <div class="edit-card-actions"><button type="button" class="btn btn-ghost" id="resetAlignBtn">归零</button></div>
+      </section>
+    </aside>
+  </div>
+</dialog>
+
+<dialog id="cellEditDialog" class="edit-dialog" aria-labelledby="cellEditTitle" aria-describedby="editInstructions">
+  <div class="edit-dialog-head">
+    <h2 id="cellEditTitle">逐格改色</h2>
+    <span class="hint">先选格，再改色；完成后保存修改</span>
+    <button type="button" class="btn btn-ghost" id="cancelCellEditBtn">取消</button>
+    <button type="button" class="btn btn-primary" id="doneCellEditBtn">完成</button>
+  </div>
+  <input type="hidden" id="editZoom" min="2" max="24" value="8">
+  <div class="edit-toolbar">
+    <div class="edit-gesture-hint" aria-label="快捷操作说明">
+      <span class="gesture-item"><span class="gesture-label">移动：</span><span>双指 / <kbd>空格</kbd> 拖动</span></span>
+      <span class="gesture-item"><span class="gesture-label">撤销：</span><span><kbd>Ctrl / ⌘</kbd><span class="key-plus">+</span><kbd>Z</kbd></span></span>
+      <span class="gesture-item"><span class="gesture-label">缩放：</span><span>捏合 / <kbd>+</kbd> <kbd>−</kbd></span></span>
+      <span class="gesture-item"><span class="gesture-label">取消全选：</span><span><kbd>Ctrl / ⌘</kbd><span class="key-plus">+</span><kbd>D</kbd></span></span>
+    </div>
+    <div class="edit-toolbar-actions">
+      <div class="edit-tool-group">
+        <input type="hidden" id="selectionTool" value="paint">
+        <div class="selection-tool-buttons" role="group" aria-label="选格方式">
+          <button type="button" class="btn btn-ghost" id="paintSelectionBtn" aria-pressed="true">涂抹选格</button>
+          <button type="button" class="btn btn-ghost" id="eraseSelectionBtn" aria-pressed="false">擦除选区</button>
+        </div>
+        <label for="selectionBrush">笔刷</label><select id="selectionBrush"><option value="1" selected>1 格</option><option value="3">3 格</option><option value="5">5 格</option><option value="9">9 格</option></select>
+        <button type="button" class="btn btn-ghost" id="clearCellSelectionBtn" disabled>取消选择</button>
+      </div>
+      <div class="edit-history-group">
+        <button type="button" class="btn btn-ghost" id="undoCellEditBtn" disabled>撤销</button>
+        <button type="button" class="btn btn-ghost" id="redoCellEditBtn" disabled>重做</button>
+      </div>
+      <div class="edit-display-group"><label class="check"><input type="checkbox" id="editGrid" checked>网格</label></div>
+    </div>
+  </div>
+  <div class="edit-workspace">
+    <div class="edit-preview-area">
+    <div class="edit-viewport" id="editViewport" tabindex="0" aria-label="改色图像，可滚动查看或捏合缩放">
+      <div class="edit-canvas-wrap"><canvas id="editCanvas" aria-label="涂抹选择要修改的格子"></canvas></div>
+    </div>
+    <div class="edit-reference" title="原图局部参考，与编辑画布同格大小，跟随画布中心移动"><canvas id="editReference" aria-label="与编辑画布同比例的原图局部参考"></canvas><span>原图</span></div>
+    </div>
+    <aside class="edit-controls">
+      <p class="sr-only" id="editInstructions">涂抹选择要修改的格子，选多了可擦除。选好后可改颜色或交错配色；双指移动或空格加左键拖动画布，捏合缩放。</p>
+      <section class="edit-card" id="cellEditor" aria-labelledby="colorEditTitle">
+        <h3 class="edit-card-title" id="colorEditTitle">改颜色</h3>
+        <div class="edit-selection-summary"><span id="cellEditLabel" aria-live="polite">请涂抹选择要修改的格子</span>
+        </div>
+        <div class="probe" id="probe" aria-live="polite" hidden></div>
+        <label for="cellColor">目标颜色</label>
+        <div class="dither-color-row">
+          <div class="cell-color-picker">
+            <select id="cellColor" hidden disabled aria-label="目标颜色"></select>
+            <button type="button" id="cellColorToggle" class="cell-color-toggle" aria-label="选择目标颜色" aria-haspopup="listbox" aria-expanded="false" aria-controls="cellColorOptions" disabled><span id="cellTargetSwatch" class="sw" aria-hidden="true"></span><span id="cellColorText">请选择格子</span><span aria-hidden="true">▾</span></button>
+            <div id="cellColorOptions" class="cell-color-options" role="listbox" aria-label="目标颜色" hidden></div>
+          </div>
+          <button type="button" class="btn btn-ghost" id="pickCellColorBtn" aria-label="吸色并应用到选中格子" aria-pressed="false" title="先选择要修改的格子，再吸色直接改色">吸色</button>
+        </div>
+        <span id="pickColorStatus" class="hint" role="status" hidden></span>
+      </section>
+      <section class="edit-card" id="ditherPanel" aria-labelledby="ditherTitle">
+        <h3 class="edit-card-title" id="ditherTitle">交错配色</h3>
+        <p class="hint">用底色和叠加色交错排列的方式表现半透明度的过渡效果</p>
+        <label for="ditherBase">底色</label>
+        <div class="dither-color-row"><div class="cell-color-picker"><select id="ditherBase" aria-label="底色" hidden></select><button type="button" id="ditherBaseToggle" class="cell-color-toggle" aria-label="选择底色" aria-haspopup="listbox" aria-expanded="false" aria-controls="ditherBaseOptions"><span id="ditherBaseSwatch" class="sw" aria-hidden="true"></span><span id="ditherBaseText">选择底色</span><span aria-hidden="true">▾</span></button><div id="ditherBaseOptions" class="cell-color-options" role="listbox" aria-label="底色" hidden></div></div><button class="btn btn-ghost" type="button" id="ditherPickBase" aria-pressed="false">吸色</button></div>
+        <label for="ditherInk">叠加色</label>
+        <div class="dither-color-row"><div class="cell-color-picker"><select id="ditherInk" aria-label="叠加色" hidden></select><button type="button" id="ditherInkToggle" class="cell-color-toggle" aria-label="选择叠加色" aria-haspopup="listbox" aria-expanded="false" aria-controls="ditherInkOptions"><span id="ditherInkSwatch" class="sw" aria-hidden="true"></span><span id="ditherInkText">选择叠加色</span><span aria-hidden="true">▾</span></button><div id="ditherInkOptions" class="cell-color-options" role="listbox" aria-label="叠加色" hidden></div></div><button class="btn btn-ghost" type="button" id="ditherPickInk" aria-pressed="false">吸色</button></div>
+        <div class="range-hd"><label for="ditherBias">叠加色占比调整</label><output id="ditherBiasOut">自动</output></div>
+        <input type="range" id="ditherBias" min="-50" max="50" value="0" step="5" aria-label="叠加色占比调整">
+        <p class="hint">0 为自动，向左调淡，向右调浓。</p>
+        <div class="edit-card-actions"><button class="btn btn-ghost" type="button" id="ditherPreview" disabled>预览效果</button><button class="btn btn-ghost" type="button" id="ditherCancel" disabled>取消预览</button><button class="btn btn-primary" type="button" id="ditherApply" disabled>应用交错配色</button></div>
+        <span id="ditherStatus" class="sr-only" role="status"></span>
+      </section>
+      <div class="edit-reset">
+        <button type="button" class="btn btn-ghost" id="resetCellBtn" disabled title="恢复全部手动改色，不受选区影响">复原全部改色</button>
+      </div>
+    </aside>
+  </div>
+</dialog>
+
+<dialog id="pixelExportDialog" class="pixel-export-dialog" aria-labelledby="pixelExportTitle">
+  <h2 id="pixelExportTitle">下载图纸</h2>
+  <div class="field"><label for="exportSizeMode">导出用途</label><select id="exportSizeMode">
+    <option value="share">分享与查看</option><option value="physical">实际尺寸打印</option>
+  </select></div>
+  <div class="field" id="exportShareFields">
+    <label for="exportQuality">图片清晰度</label>
+    <select id="exportQuality"><option value="2400">标准（长边约 2400px）</option><option value="4800">高清（长边约 4800px）</option></select>
+  </div>
+  <div class="field" id="exportPhysicalFields" hidden>
+    <label for="exportBeadMm">每格大小（mm）</label>
+    <input id="exportBeadMm" type="number" min="0.01" step="any" placeholder="填写实际格子大小" inputmode="decimal">
+  </div>
+  <p id="exportDimensions" class="export-dimensions" aria-live="polite"></p>
+  <div class="export-options">
+    <label class="check"><input type="checkbox" id="exportGrid" checked><span>含网格</span></label>
+    <label class="check"><input type="checkbox" id="exportLabels"><span>标注色号／颜色名称</span></label>
+    <div id="exportShareOptions" class="export-share-options">
+      <label class="check"><input type="checkbox" id="exportPalette" checked><span>色卡</span></label>
+      <label class="check"><input type="checkbox" id="exportWatermark"><span>添加水印</span></label>
+      <div class="field export-watermark-field" id="exportWatermarkField" hidden>
+        <label for="exportWatermarkText">水印名称</label>
+        <input type="text" id="exportWatermarkText" maxlength="40" placeholder="输入水印名称">
+      </div>
+    </div>
+  </div>
+  <p class="hint" id="exportSizeError" role="status" hidden></p>
+  <div class="pixel-export-actions"><button type="button" class="btn btn-ghost" id="cancelPixelExport">取消</button><button type="button" class="btn btn-primary" id="exportPixelConfirm">下载 PNG</button></div>
+</dialog>
 <input type="file" id="fileInput" accept="image/*" hidden>
 <div class="toast" id="toast" hidden></div>
 <div class="busy" id="busy" hidden><span class="spin"></span>正在识别…</div>
 
 <script src="./js/color.js"></script>
+<script src="./js/mard-palettes.js"></script>
+<script src="./js/color-library.js"></script>
 <script src="./js/grid.js"></script>
+<script src="./js/pixel.js"></script>
 <script src="./js/palette.js"></script>
 <script src="./js/textchart.js"></script>
+<script src="./js/dither.js"></script>
+<script src="./js/dither-editor.js"></script>
+<script src="./js/pixel-export.js"></script>
+<script src="./js/excel-export.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>
