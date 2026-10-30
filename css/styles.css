@@ -92,7 +92,8 @@ kbd {
 
 .brand-mark {
   align-self: center;
-  width: 26px; height: 24px;
+  width: 40px; height: 40px;
+  margin-block: -2px; /* 保持原先 36px 的纵向占位，不撑高顶部栏 */
   object-fit: contain;
   flex: none;
 }
