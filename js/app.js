@@ -453,6 +453,7 @@
       S.mergeResultKey = null;
       toast('色卡已重新计算，旧的手动合并已重置，请按新色卡重新选择');
     }
+    if (!samePalette) S.custom.paletteHistory = [];
     S.base = next;
   }
 
@@ -687,7 +688,10 @@
               event.stopPropagation(); ditherEditor.cancel();
               var positions = [];
               S.cells.forEach(function (value, pos) { if (value === i) positions.push(pos); });
-              rememberCellEdit();
+              if (!S.custom.paletteHistory) S.custom.paletteHistory = [];
+              S.custom.paletteHistory.push({ type: 'recolor', edits: positions.map(function (pos) {
+                return [pos, S.cellEdits.has(pos) ? S.cellEdits.get(pos) : null];
+              }) });
               positions.forEach(function (pos) { S.cellEdits.set(pos, { lab: color.lab.slice(), code: color.code }); });
               close(); applyCustomAndRender();
               toast('已替换 ' + positions.length + ' 格颜色');
@@ -702,7 +706,9 @@
     });
     el.palette.replaceChildren(frag);
     el.mergeBtn.disabled = true;
-    el.undoMergeBtn.disabled = S.custom.merges.length === 0;
+    el.undoMergeBtn.disabled = S.custom.merges.length === 0 && !(S.custom.paletteHistory || []).length;
+    el.undoMergeBtn.title = '撤回上一次改色或合并';
+    el.undoMergeBtn.setAttribute('aria-label', '撤回上一次改色或合并');
     el.paletteHint.textContent = S.palette.length
       ? (library ? '勾选两种及以上颜色可合并：数量多的颜色影响更大，结果匹配为最接近的库内色号，也可能是第三种色号。' : '按色系排列；改名后文字图纸实时更新，勾选两个及以上颜色可合并。')
       : '等待识别结果。';
@@ -1609,6 +1615,8 @@
       var keys = [];
       S.selected.forEach(function (i) { if (S.palette[i]) keys.push(S.palette[i].code || S.palette[i].hex); });
       var sourceCell = S.cells.findIndex(function (index) { return S.selected.has(index); });
+      if (!S.custom.paletteHistory) S.custom.paletteHistory = [];
+      S.custom.paletteHistory.push({ type: 'merge' });
       S.custom.merges.push({ keys: keys, sourceCell: sourceCell });
       S.showMergeResult = true;
       applyCustomAndRender();
@@ -1617,10 +1625,18 @@
       toast('已合并 ' + keys.length + ' 种颜色');
     });
     el.undoMergeBtn.addEventListener('click', function () {
-      if (!S.custom.merges.length) return;
-      S.custom.merges.pop();
+      var history = S.custom.paletteHistory || [], action = history.pop();
+      if (!action && !S.custom.merges.length) return;
+      ditherEditor.cancel();
+      if (action && action.type === 'recolor') {
+        action.edits.forEach(function (entry) {
+          if (entry[1] === null) S.cellEdits.delete(entry[0]);
+          else S.cellEdits.set(entry[0], entry[1]);
+        });
+      } else S.custom.merges.pop();
+      S.editUndo = []; S.editRedo = [];
       applyCustomAndRender();
-      toast('已撤销上一次颜色合并');
+      toast(action && action.type === 'recolor' ? '已撤回上一次改色' : '已撤回上一次颜色合并');
     });
 
     // 画布
