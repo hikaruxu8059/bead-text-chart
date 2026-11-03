@@ -56,12 +56,18 @@
     });
   }
 
-  function match(model, library) {
+  function match(model, library, options) {
     var palette = [], byCode = new Map(), remap = [];
     model.palette.forEach(function (p, i) {
       var best = library[0], dist = Infinity;
       library.forEach(function (candidate) {
         var d = C.deltaE(p.lab, candidate.lab);
+        // 像素模式中惩罚彩度丢失，避免浅肤色/米色在匹配边界突然变灰。
+        // 仍允许匹配纯灰色卡，不强制添加任何颜色。
+        if (options && options.preserveChroma) {
+          var da = p.lab[1] - candidate.lab[1], db = p.lab[2] - candidate.lab[2];
+          d = Math.sqrt(d * d + 2 * (da * da + db * db));
+        }
         if (d < dist) { dist = d; best = candidate; }
       });
       if (!byCode.has(best.code)) {

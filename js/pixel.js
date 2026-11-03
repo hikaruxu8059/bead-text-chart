@@ -257,7 +257,7 @@
       // 在原始色差上合并，避免先匹配色卡放大纸张纹理等微小色差。
       result = global.Palette.build(raw, Object.assign({}, opts, { coverAllColors: true }));
     }
-    if (library && library.length) result = global.ColorLibrary.match(result, library);
+    if (library && library.length) result = global.ColorLibrary.match(result, library, { preserveChroma: true });
     result.retainedLineCells = raw.retainedLineCells || 0;
     return result;
   }

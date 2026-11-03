@@ -392,3 +392,16 @@ test('线条鲜明保持粗直线等宽，不因跨格边缘而向邻格扩张',
     }
   }
 });
+
+test('像素匹配保留合并后的浅暖色，邻近肤色不突变为中性灰', () => {
+  for (const rgb of [[226,216,209],[232,220,213]]) {
+    const model={palette:[{rgb,lab:context.window.Color.rgbToLab(rgb),count:1}],cells:new Int16Array([0])};
+    const matched=ColorLibrary.match(model,ColorLibrary.builtins.mard221.colors,{preserveChroma:true});
+    const result=matched.palette[0];
+    assert.ok(result.rgb[0]-result.rgb[2]>10,'浅暖色不应变成灰色');
+    assert.equal(matched.cells[0],0);
+    assert.equal(result.count,1);
+    const gray=ColorLibrary.match(model,ColorLibrary.builtins.gray.colors,{preserveChroma:true});
+    assert.equal(gray.palette[0].rgb[0],gray.palette[0].rgb[2]);
+  }
+});
