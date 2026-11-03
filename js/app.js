@@ -651,7 +651,53 @@
         nameWrap.appendChild(name);
         cb.setAttribute('aria-label', '选择颜色 ' + p.name);
       }
-      row.appendChild(cb); row.appendChild(sw); row.appendChild(nameWrap); row.appendChild(n);
+      var picker = document.createElement('div'); picker.className = 'pal-color-control';
+      var arrow = document.createElement('button'); arrow.type = 'button'; arrow.className = 'pal-color-arrow';
+      arrow.textContent = '▾'; arrow.title = '改颜色';
+      arrow.setAttribute('aria-label', '替换颜色 ' + (p.code || p.name));
+      arrow.setAttribute('aria-expanded', 'false');
+      var menu = document.createElement('div'); menu.className = 'pal-recolor-menu'; menu.hidden = true;
+      var choices = library ? library.colors : S.palette;
+      var used = new Set(S.palette.map(function (color) { return color.code || color.hex; }));
+      function close() { menu.hidden = true; arrow.setAttribute('aria-expanded', 'false'); }
+      arrow.addEventListener('click', function (event) {
+        event.stopPropagation();
+        var opening = menu.hidden;
+        el.palette.querySelectorAll('.pal-recolor-menu').forEach(function (other) { other.hidden = true; });
+        el.palette.querySelectorAll('.pal-color-arrow').forEach(function (other) { other.setAttribute('aria-expanded', 'false'); });
+        menu.hidden = !opening; arrow.setAttribute('aria-expanded', String(opening));
+        clearPaletteHighlight();
+      });
+      menu.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') { event.preventDefault(); close(); arrow.focus(); }
+      });
+      // 首次打开才生成完整色库，避免每行重复创建数百个选项。
+      arrow.addEventListener('click', function () {
+        if (menu.childElementCount || menu.hidden) return;
+        [true, false].forEach(function (inUse) {
+          var items = choices.filter(function (color) { return used.has(color.code || color.hex) === inUse; });
+          if (!items.length) return;
+          menu.appendChild(span(inUse ? '图中已使用' : '色库其他颜色', 'cell-color-group-heading'));
+          items.forEach(function (color) {
+            var button = document.createElement('button'); button.type = 'button'; button.className = 'cell-color-option';
+            var chip = span('', 'sw'); chip.style.background = color.hex;
+            button.append(chip, span(color.code || color.name || color.hex));
+            button.disabled = color.hex === p.hex;
+            button.addEventListener('click', function (event) {
+              event.stopPropagation(); ditherEditor.cancel();
+              var positions = [];
+              S.cells.forEach(function (value, pos) { if (value === i) positions.push(pos); });
+              rememberCellEdit();
+              positions.forEach(function (pos) { S.cellEdits.set(pos, { lab: color.lab.slice(), code: color.code }); });
+              close(); applyCustomAndRender();
+              toast('已替换 ' + positions.length + ' 格颜色');
+            });
+            menu.appendChild(button);
+          });
+        });
+      });
+      picker.append(sw, arrow);
+      row.appendChild(cb); row.appendChild(picker); row.appendChild(nameWrap); row.appendChild(n); row.appendChild(menu);
       frag.appendChild(row);
     });
     el.palette.replaceChildren(frag);
@@ -980,7 +1026,19 @@
     menu.hidden = true;
     $('cellColorText').textContent = chosen ? (chosen.code || chosen.name) : valid ? '选择颜色' : '请选择格子';
     menu.replaceChildren();
-    options.forEach(function (p, i) {
+    var usedCodes = new Set(S.palette.filter(function (p) { return p.count > 0; }).map(function (p) { return p.code; }));
+    var entries = options.map(function (p, i) { return { color: p, index: i }; });
+    var groups = [{ label: '图中已使用', entries: entries.filter(function (entry) { return !library || usedCodes.has(entry.color.code); }) }];
+    if (library) groups.push({ label: '色库其他颜色', entries: entries.filter(function (entry) { return !usedCodes.has(entry.color.code); }) });
+    groups.forEach(function (group) {
+      if (!group.entries.length) return;
+      var section = document.createElement('div');
+      section.setAttribute('role', 'group'); section.setAttribute('aria-label', group.label);
+      var heading = span(group.label + '（' + group.entries.length + '）', 'cell-color-group-heading');
+      heading.setAttribute('aria-hidden', 'true'); section.appendChild(heading);
+      menu.appendChild(section);
+      group.entries.forEach(function (entry) {
+      var p = entry.color, i = entry.index;
       var button = document.createElement('button');
       button.type = 'button'; button.className = 'cell-color-option';
       button.setAttribute('role', 'option');
@@ -994,7 +1052,8 @@
         el.cellColor.dispatchEvent(new Event('change', { bubbles: true }));
         toggle.focus();
       });
-      menu.appendChild(button);
+      section.appendChild(button);
+      });
     });
   }
 
