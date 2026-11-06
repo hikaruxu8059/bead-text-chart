@@ -161,6 +161,10 @@
         </select>
         <p class="hint" id="pixelSamplingHint">柔和清晰：颜色过渡自然，同时保留细线。线条鲜明：色块分界更清楚，线条更突出。细节不足时，可适当增加行列数。</p>
       </div>
+      <div id="pixelDenoiseControls" hidden>
+        <label class="check"><input type="checkbox" id="pixelDenoise"><span>去杂色</span></label>
+        <p class="hint">可选，默认关闭。在原版线条鲜明的基础上减少细碎杂色；细节变少时可关闭对比。</p>
+      </div>
       <div id="pixelLineControls">
         <div class="range-hd"><label for="pixelLineStrength">线条清晰度</label><output id="pixelLineStrengthOut" for="pixelLineStrength">65</output></div>
         <input type="range" id="pixelLineStrength" min="0" max="100" step="1" value="65">
@@ -428,6 +432,7 @@
 <script src="./js/mard-palettes.js"></script>
 <script src="./js/color-library.js"></script>
 <script src="./js/grid.js"></script>
+<script src="./js/pixel-denoise.js"></script>
 <script src="./js/pixel.js"></script>
 <script src="./js/palette.js"></script>
 <script src="./js/textchart.js"></script>
@@ -435,6 +440,7 @@
 <script src="./js/dither-editor.js"></script>
 <script src="./js/pixel-export.js"></script>
 <script src="./js/excel-export.js"></script>
+<script src="./js/pixel-job.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>

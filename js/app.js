@@ -20,6 +20,7 @@
     keepRatio: $('keepRatio'), pixelGrid: $('pixelGrid'),
     beadSizeMm: $('beadSizeMm'), physicalSize: $('physicalSize'),
     pixelSampling: $('pixelSampling'),
+    pixelDenoise: $('pixelDenoise'), pixelDenoiseControls: $('pixelDenoiseControls'),
     pixelLineControls: $('pixelLineControls'), pixelLineStrength: $('pixelLineStrength'), pixelLineStrengthOut: $('pixelLineStrengthOut'),
     colorLibrary: $('colorLibrary'),
     pickBtn: $('pickBtn'), pickBtn2: $('pickBtn2'),
@@ -73,9 +74,9 @@
   };
 
   // Each processing mode owns its grid and edits for the currently loaded image.
-  var modeDrafts = {}, analysisRevision = 0;
+  var modeDrafts = {}, analysisRevision = 0, pendingAnalysisRevision = 0;
   var modeInputs = ['chartSampling', 'unitCellSpan', 'unitCellSize', 'cols', 'rows', 'offsetX', 'offsetY', 'thresh', 'fixK', 'kNum',
-    'colorLibrary', 'keepRatio', 'pixelGrid', 'pixelSampling', 'pixelLineStrength',
+    'colorLibrary', 'keepRatio', 'pixelGrid', 'pixelSampling', 'pixelLineStrength', 'pixelDenoise',
     'zoom'];
 
   function saveModeDraft() {
@@ -86,6 +87,7 @@
     });
     modeDrafts[S.mode] = {
       inputs: inputs, cols: S.cols, rows: S.rows, base: S.base,
+      needsAnalysis: pendingAnalysisRevision === analysisRevision,
       geom: S.geom, detectedGeom: S.detectedGeom, gridKey: S.gridKey,
       custom: JSON.parse(JSON.stringify(S.custom)), cellEdits: new Map(S.cellEdits),
       view: S.view, scrollLeft: el.viewport.scrollLeft, scrollTop: el.viewport.scrollTop
@@ -187,6 +189,7 @@
       modeDrafts = {};
       el.unitCellSize.value = '';
       analysisRevision++;
+      PixelJob.cancel();
       S.img = img;
       S.originalImgData = null;
       // 空状态允许显示 0；图片载入后网格尺寸必须至少为 1 × 1。
@@ -305,6 +308,7 @@
     Object.keys(debounceTimers).forEach(function (key) { clearTimeout(debounceTimers[key]); });
     saveModeDraft();
     analysisRevision++;
+    PixelJob.cancel();
     cancelUnitCellSelection();
     S.mode = mode === 'pixel' ? 'pixel' : 'chart';
     var pixel = S.mode === 'pixel';
@@ -323,7 +327,9 @@
     S.selectedCells.clear();
     S.probeCell = -1;
     if (modeDrafts[S.mode]) {
-      restoreModeDraft(modeDrafts[S.mode]);
+      var draft = modeDrafts[S.mode];
+      restoreModeDraft(draft);
+      if (draft.needsAnalysis) analyze(false);
       return;
     }
     S.base = null;
@@ -345,8 +351,10 @@
   function analyze(withDetect) {
     if (!S.img) return;
     var revision = ++analysisRevision;
+    pendingAnalysisRevision = revision;
+    PixelJob.cancel();
     busy(true);
-    requestAnimationFrame(function () {
+    requestAnimationFrame(async function () {
       if (revision !== analysisRevision) { busy(false); return; }
       var t0 = performance.now();
       try {
@@ -369,23 +377,18 @@
           }
         }
 
-        S.cols = num(el.cols, 1, 600, 100);
-        S.rows = num(el.rows, 1, 600, 77);
-        el.cols.value = S.cols;
-        el.rows.value = S.rows;
-        var gridKey = S.cols + 'x' + S.rows;
-        if (S.gridKey && S.gridKey !== gridKey) {
-          ditherEditor.cancel();
-          S.cellEdits.clear();
-          S.selectedCells.clear();
-          S.probeCell = -1;
+        var cols = num(el.cols, 1, 600, 100), rows = num(el.rows, 1, 600, 77);
+        el.cols.value = cols; el.rows.value = rows;
+        function commitGrid() {
+          S.cols = cols; S.rows = rows;
+          var gridKey = cols + 'x' + rows;
+          if (S.gridKey && S.gridKey !== gridKey) {
+            ditherEditor.cancel(); S.cellEdits.clear(); S.selectedCells.clear(); S.probeCell = -1;
+          }
+          S.gridKey = gridKey;
+          S.geom = fitGeometry(id.width, id.height);
         }
-        S.gridKey = gridKey;
-        S.geom = fitGeometry(id.width, id.height);
 
-        var raw = S.mode === 'pixel'
-          ? Pixel.sample(id.data, id.width, id.height, S.cols, S.rows, el.pixelSampling.value, +el.pixelLineStrength.value)
-          : sampleOriginalChart();
         var options = {
           mode: el.fixK.checked ? 'k' : 'thresh',
           thresh: num(el.thresh, 3, 45, 12),
@@ -394,16 +397,30 @@
         };
         options.cluster = true;
         var library = currentLibrary();
-        var nextBase = S.mode === 'pixel'
-          ? Pixel.build(raw, options, library ? library.colors : null)
-          : Palette.build(raw, options);
+        var nextBase;
+        if (S.mode === 'pixel' && el.pixelSampling.value === 'lines') {
+          nextBase = await PixelJob.run({ data: id.data, width: id.width, height: id.height,
+            cols: cols, rows: rows, denoise: el.pixelDenoise.checked, options: options, library: library ? library.colors : null });
+          if (revision !== analysisRevision || !validGridInput(el.cols) || !validGridInput(el.rows) ||
+              Number(el.cols.value) !== cols || Number(el.rows.value) !== rows) return;
+          commitGrid();
+        } else {
+          commitGrid();
+          var raw = S.mode === 'pixel'
+            ? Pixel.sample(id.data, id.width, id.height, S.cols, S.rows, el.pixelSampling.value, +el.pixelLineStrength.value)
+            : sampleOriginalChart();
+          nextBase = S.mode === 'pixel'
+            ? Pixel.build(raw, options, library ? library.colors : null)
+            : Palette.build(raw, options);
+        }
         replaceAnalysisBase(nextBase);
 
         applyCustomAndRender();
         el.perfInfo.textContent = (S.mode === 'pixel' ? '像素化耗时 ' : '识别耗时 ') + Math.round(performance.now() - t0) + ' ms';
       } catch (e) {
-        console.error(e);
+        if (revision === analysisRevision && e.name !== 'AbortError') { console.error(e); toast('处理失败，请重试：' + e.message, 5000); }
       } finally {
+        if (pendingAnalysisRevision === revision) pendingAnalysisRevision = 0;
         busy(false);
       }
     });
@@ -1417,6 +1434,7 @@
 
   function updateLineControls() {
     el.pixelLineControls.hidden = el.pixelSampling.value !== 'balanced';
+    el.pixelDenoiseControls.hidden = el.pixelSampling.value !== 'lines';
     el.pixelLineStrengthOut.textContent = el.pixelLineStrength.value;
   }
 
@@ -1434,7 +1452,7 @@
       localStorage.setItem(LS_KEY, JSON.stringify({
         thresh: el.thresh.value, fixK: el.fixK.checked, k: el.kNum.value,
         library: el.colorLibrary.value, chartSampling: el.chartSampling.value,
-        pixelSampling: el.pixelSampling.value, pixelSamplingVersion: 3, pixelLineStrength: +el.pixelLineStrength.value,
+        pixelSampling: el.pixelSampling.value, pixelSamplingVersion: 3, pixelDenoise: el.pixelDenoise.checked, pixelLineStrength: +el.pixelLineStrength.value,
         beadSizeMm: beadSizeMm() || null,
         zoom: el.zoom.value, opts: currentOpts(),
         theme: document.documentElement.getAttribute('data-theme') || ''
@@ -1457,6 +1475,7 @@
       }
       // 已移除的取色选项回到默认效果，避免选择器出现空值。
       if (s.pixelSamplingVersion === 3 && ['balanced', 'lines'].includes(s.pixelSampling)) el.pixelSampling.value = s.pixelSampling;
+      el.pixelDenoise.checked = s.pixelDenoise === true;
       if (Number.isFinite(s.pixelLineStrength)) el.pixelLineStrength.value = Math.max(0, Math.min(100, s.pixelLineStrength));
       if (['none', 'mard221', 'mard291'].includes(s.library)) el.colorLibrary.value = s.library;
       if (s.thresh) { el.thresh.value = s.thresh; el.threshOut.textContent = s.thresh; }
@@ -1500,6 +1519,10 @@
     el.pixelSampling.addEventListener('change', function () {
       updateLineControls(); saveSettings();
       if (S.mode === 'pixel') analyze(false);
+    });
+    el.pixelDenoise.addEventListener('change', function () {
+      saveSettings();
+      if (S.mode === 'pixel' && el.pixelSampling.value === 'lines') analyze(false);
     });
     el.pixelLineStrength.addEventListener('input', function () {
       updateLineControls(); saveSettings();

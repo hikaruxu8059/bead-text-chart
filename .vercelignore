@@ -5,3 +5,11 @@ server.js
 .git
 node_modules
 *.log
+
+# 本地研究资料与验证工具
+reports
+tests
+scripts
+tmp
+js/pixel-lines.js
+js/pixel-regions.js
