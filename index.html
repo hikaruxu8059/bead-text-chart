@@ -170,6 +170,7 @@
         <input type="range" id="pixelLineStrength" min="0" max="100" step="1" value="65">
         <p class="hint">数值越小，过渡越柔和；数值越大，细线越鲜明。默认 65。只调整细线，其他区域保持柔和过渡；相邻数值的效果可能相同。</p>
       </div>
+
       </div>
     </section>
 
@@ -203,16 +204,17 @@
       </div>
     </div>
 
-    <div class="sec-hd palette-editor-heading">
+    <div class="palette-editor-heading">
       <h3>编辑色卡</h3>
-      <span class="sec-meta" id="paletteCount" aria-live="polite">0 色</span>
-      <div class="sec-hd-actions">
-        <button type="button" class="btn btn-ghost undo-merge" id="undoMergeBtn" title="撤销上一次颜色合并" aria-label="撤销上一次颜色合并" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5 4 10l5 5"/><path d="M4 10h10a5 5 0 0 1 0 10h-3"/></svg></button>
-        <button type="button" class="btn btn-ghost" id="mergeBtn" disabled>合并所选</button>
-      </div>
-      <p class="hint" id="paletteHint">改名后文字图纸实时更新；勾选两个及以上色块可合并为同一种珠子。</p>
+      <p class="hint" id="paletteHint">勾选两种及以上颜色可合并；数量多的颜色影响更大，结果匹配为最接近的库内色号，也可能是第三种色号。</p>
     </div>
-
+    <div class="palette-table-head">
+      <div class="palette-table-action">
+        <button type="button" class="btn btn-ghost" id="mergeBtn" disabled>合并</button>
+        <button type="button" class="btn btn-ghost" id="undoMergeBtn" title="撤回上一次改色或合并" aria-label="撤回上一次改色或合并" hidden>撤销</button>
+      </div>
+      <span id="paletteCount" aria-live="polite">共使用 0 色</span>
+    </div>
     <div class="palette" id="palette"></div>
     <div class="pad palette-edit-entry">
       <button type="button" class="btn cell-edit-launch" id="openCellEditorBtn" disabled>
@@ -407,6 +409,13 @@
   <div class="field" id="exportPhysicalFields" hidden>
     <label for="exportBeadMm">每格大小（mm）</label>
     <input id="exportBeadMm" type="number" min="0.01" step="any" placeholder="填写实际格子大小" inputmode="decimal">
+    <label for="exportPaper">打印纸张</label>
+    <select id="exportPaper"><option value="a4">A4（210 × 297 mm）</option><option value="a3">A3（297 × 420 mm）</option></select>
+    <label for="exportOrientation">纸张方向</label>
+    <select id="exportOrientation"><option value="auto">自动（减少张数）</option><option value="portrait">纵向</option><option value="landscape">横向</option></select>
+    <label for="exportMargin">页边距（mm）</label>
+    <input id="exportMargin" type="number" min="0" step="any" value="5" inputmode="decimal">
+    <p class="hint">沿完整格子自动分张，每张为所选纸张大小，多张打包下载 PNG。裁去图案周围空白后按行列范围拼接。打印请选择相同纸张和方向、实际大小／100%，不要缩放至纸张。页边距须符合打印机的可打印范围。</p>
   </div>
   <p id="exportDimensions" class="export-dimensions" aria-live="polite"></p>
   <div class="export-options">
@@ -432,15 +441,15 @@
 <script src="./js/mard-palettes.js"></script>
 <script src="./js/color-library.js"></script>
 <script src="./js/grid.js"></script>
-<script src="./js/pixel-denoise.js"></script>
 <script src="./js/pixel.js"></script>
+<script src="./js/pixel-denoise.js"></script>
 <script src="./js/palette.js"></script>
 <script src="./js/textchart.js"></script>
 <script src="./js/dither.js"></script>
 <script src="./js/dither-editor.js"></script>
+<script src="./js/zip-store.js"></script>
 <script src="./js/pixel-export.js"></script>
 <script src="./js/excel-export.js"></script>
-<script src="./js/pixel-job.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>

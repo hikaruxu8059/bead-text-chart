@@ -66,7 +66,7 @@
     palette: [], cells: null,
     custom: { merges: [], names: [] },
     selected: new Set(),
-    iso: -1, selectedCells: new Set(), cellEdits: new Map(),
+    iso: -1, isoPinned: false, selectedCells: new Set(), cellEdits: new Map(),
     fresh: true, gridKey: '', probeCell: -1,
     view: 'result', weakGrid: false,
     editSession: null, editUndo: [], editRedo: [], pickingColor: false, editTarget: null,
@@ -74,7 +74,7 @@
   };
 
   // Each processing mode owns its grid and edits for the currently loaded image.
-  var modeDrafts = {}, analysisRevision = 0, pendingAnalysisRevision = 0;
+  var modeDrafts = {}, analysisRevision = 0;
   var modeInputs = ['chartSampling', 'unitCellSpan', 'unitCellSize', 'cols', 'rows', 'offsetX', 'offsetY', 'thresh', 'fixK', 'kNum',
     'colorLibrary', 'keepRatio', 'pixelGrid', 'pixelSampling', 'pixelLineStrength', 'pixelDenoise',
     'zoom'];
@@ -87,7 +87,6 @@
     });
     modeDrafts[S.mode] = {
       inputs: inputs, cols: S.cols, rows: S.rows, base: S.base,
-      needsAnalysis: pendingAnalysisRevision === analysisRevision,
       geom: S.geom, detectedGeom: S.detectedGeom, gridKey: S.gridKey,
       custom: JSON.parse(JSON.stringify(S.custom)), cellEdits: new Map(S.cellEdits),
       view: S.view, scrollLeft: el.viewport.scrollLeft, scrollTop: el.viewport.scrollTop
@@ -189,7 +188,6 @@
       modeDrafts = {};
       el.unitCellSize.value = '';
       analysisRevision++;
-      PixelJob.cancel();
       S.img = img;
       S.originalImgData = null;
       // 空状态允许显示 0；图片载入后网格尺寸必须至少为 1 × 1。
@@ -308,7 +306,6 @@
     Object.keys(debounceTimers).forEach(function (key) { clearTimeout(debounceTimers[key]); });
     saveModeDraft();
     analysisRevision++;
-    PixelJob.cancel();
     cancelUnitCellSelection();
     S.mode = mode === 'pixel' ? 'pixel' : 'chart';
     var pixel = S.mode === 'pixel';
@@ -327,9 +324,7 @@
     S.selectedCells.clear();
     S.probeCell = -1;
     if (modeDrafts[S.mode]) {
-      var draft = modeDrafts[S.mode];
-      restoreModeDraft(draft);
-      if (draft.needsAnalysis) analyze(false);
+      restoreModeDraft(modeDrafts[S.mode]);
       return;
     }
     S.base = null;
@@ -351,10 +346,8 @@
   function analyze(withDetect) {
     if (!S.img) return;
     var revision = ++analysisRevision;
-    pendingAnalysisRevision = revision;
-    PixelJob.cancel();
     busy(true);
-    requestAnimationFrame(async function () {
+    requestAnimationFrame(function () {
       if (revision !== analysisRevision) { busy(false); return; }
       var t0 = performance.now();
       try {
@@ -377,18 +370,26 @@
           }
         }
 
-        var cols = num(el.cols, 1, 600, 100), rows = num(el.rows, 1, 600, 77);
-        el.cols.value = cols; el.rows.value = rows;
-        function commitGrid() {
-          S.cols = cols; S.rows = rows;
-          var gridKey = cols + 'x' + rows;
-          if (S.gridKey && S.gridKey !== gridKey) {
-            ditherEditor.cancel(); S.cellEdits.clear(); S.selectedCells.clear(); S.probeCell = -1;
-          }
-          S.gridKey = gridKey;
-          S.geom = fitGeometry(id.width, id.height);
+        S.cols = num(el.cols, 1, 600, 100);
+        S.rows = num(el.rows, 1, 600, 77);
+        el.cols.value = S.cols;
+        el.rows.value = S.rows;
+        var gridKey = S.cols + 'x' + S.rows;
+        if (S.gridKey && S.gridKey !== gridKey) {
+          ditherEditor.cancel();
+          S.cellEdits.clear();
+          S.selectedCells.clear();
+          S.probeCell = -1;
         }
+        S.gridKey = gridKey;
+        S.geom = fitGeometry(id.width, id.height);
 
+        var raw = S.mode === 'pixel'
+          ? Pixel.sample(id.data, id.width, id.height, S.cols, S.rows, el.pixelSampling.value, +el.pixelLineStrength.value)
+          : sampleOriginalChart();
+        if (S.mode === 'pixel' && el.pixelSampling.value === 'lines' && el.pixelDenoise.checked) {
+          raw = PixelDenoise.clean(raw, id.data, id.width, id.height, S.cols, S.rows);
+        }
         var options = {
           mode: el.fixK.checked ? 'k' : 'thresh',
           thresh: num(el.thresh, 3, 45, 12),
@@ -397,30 +398,16 @@
         };
         options.cluster = true;
         var library = currentLibrary();
-        var nextBase;
-        if (S.mode === 'pixel' && el.pixelSampling.value === 'lines') {
-          nextBase = await PixelJob.run({ data: id.data, width: id.width, height: id.height,
-            cols: cols, rows: rows, denoise: el.pixelDenoise.checked, options: options, library: library ? library.colors : null });
-          if (revision !== analysisRevision || !validGridInput(el.cols) || !validGridInput(el.rows) ||
-              Number(el.cols.value) !== cols || Number(el.rows.value) !== rows) return;
-          commitGrid();
-        } else {
-          commitGrid();
-          var raw = S.mode === 'pixel'
-            ? Pixel.sample(id.data, id.width, id.height, S.cols, S.rows, el.pixelSampling.value, +el.pixelLineStrength.value)
-            : sampleOriginalChart();
-          nextBase = S.mode === 'pixel'
-            ? Pixel.build(raw, options, library ? library.colors : null)
-            : Palette.build(raw, options);
-        }
+        var nextBase = S.mode === 'pixel'
+          ? Pixel.build(raw, options, library ? library.colors : null)
+          : Palette.build(raw, options);
         replaceAnalysisBase(nextBase);
 
         applyCustomAndRender();
         el.perfInfo.textContent = (S.mode === 'pixel' ? '像素化耗时 ' : '识别耗时 ') + Math.round(performance.now() - t0) + ' ms';
       } catch (e) {
-        if (revision === analysisRevision && e.name !== 'AbortError') { console.error(e); toast('处理失败，请重试：' + e.message, 5000); }
+        console.error(e);
       } finally {
-        if (pendingAnalysisRevision === revision) pendingAnalysisRevision = 0;
         busy(false);
       }
     });
@@ -507,7 +494,7 @@
       if (named) p.name = named.name;
     });
     Color.nameAll(S.palette);
-    S.iso = -1;
+    S.iso = -1; S.isoPinned = false;
     S.selected.clear();
     if (S.fresh) { shrinkZoomToFit(); S.fresh = false; }
     renderPalette();
@@ -588,34 +575,88 @@
       '<span>最终 <b>' + S.palette.length + '</b> 种颜色</span>';
   }
 
-  function clearPaletteHighlight() {
-    if (S.iso < 0) return;
-    S.iso = -1;
-    renderCanvas();
+  function syncPaletteHighlight() {
+    el.palette.querySelectorAll('.pal-row').forEach(function (row) {
+      var active = Number(row.dataset.i) === S.iso;
+      row.classList.toggle('iso', active);
+      row.classList.toggle('iso-pinned', active && S.isoPinned);
+      var button = row.querySelector('.pal-locate');
+      if (button) button.setAttribute('aria-pressed', String(active && S.isoPinned));
+    });
+  }
+
+  function setPaletteHighlight(index, pinned) {
+    var changed = S.iso !== index;
+    S.iso = index; S.isoPinned = !!pinned;
+    syncPaletteHighlight();
+    if (changed) renderCanvas();
+  }
+
+  function clearPaletteHighlight() { setPaletteHighlight(-1, false); }
+
+  function paletteLocationRow(target) {
+    var area = target.closest && target.closest('.pal-details');
+    if (!area || target.closest('input, select, textarea, .pal-color-arrow')) return null;
+    var row = area.closest('.pal-row');
+    return row && el.palette.contains(row) ? row : null;
   }
 
   function bindPaletteHighlight() {
-    // Replacing rows can fire enter events without deliberate pointer movement.
-    // Resolve the current row only on a real move, never retain a removed row's index.
+    // Mouse hover remains temporary; tapping a swatch pins its location.
     document.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch' || S.isoPinned) return;
       var row = e.target.closest && e.target.closest('.pal-row');
       var index = -1;
-      if (e.pointerType !== 'touch' && !e.buttons && row && el.palette.contains(row)) {
+      if (!e.buttons && row && el.palette.contains(row)) {
         var candidate = Number(row.dataset.i);
         if (Number.isInteger(candidate) && candidate >= 0 && candidate < S.palette.length) index = candidate;
       }
-      if (S.iso !== index) { S.iso = index; renderCanvas(); }
+      if (S.iso !== index) setPaletteHighlight(index, false);
     });
-    el.palette.addEventListener('pointerleave', clearPaletteHighlight);
-    document.addEventListener('pointerdown', clearPaletteHighlight, true);
-    document.addEventListener('pointercancel', clearPaletteHighlight);
+    el.palette.addEventListener('click', function (e) {
+      var row = paletteLocationRow(e.target);
+      if (!row) return;
+      var index = Number(row.dataset.i);
+      if (!Number.isInteger(index) || index < 0 || index >= S.palette.length) return;
+      setPaletteHighlight(S.isoPinned && S.iso === index ? -1 : index, !(S.isoPinned && S.iso === index));
+    });
+    el.palette.addEventListener('pointerleave', function () { if (!S.isoPinned) clearPaletteHighlight(); });
+    document.addEventListener('pointerdown', function (e) {
+      if (paletteLocationRow(e.target)) return;
+      // Keep a touch location while the user scrolls back to the preview.
+      if (e.pointerType === 'touch' && !e.target.closest('button, input, select, textarea, label, a')) return;
+      clearPaletteHighlight();
+    }, true);
+    document.addEventListener('pointercancel', function () { if (!S.isoPinned) clearPaletteHighlight(); });
     window.addEventListener('blur', clearPaletteHighlight);
+  }
+
+  function updatePaletteActions() {
+    var selected = S.selected.size, canUndo = S.custom.merges.length > 0 || (S.custom.paletteHistory || []).length > 0;
+    var showUndo = selected === 0 && canUndo;
+    el.mergeBtn.hidden = showUndo;
+    el.mergeBtn.disabled = selected < 2;
+    el.undoMergeBtn.hidden = !showUndo;
+    el.undoMergeBtn.disabled = !canUndo;
+  }
+
+  function revealPaletteCell(pos) {
+    if (!Number.isInteger(pos) || !S.cells || pos < 0 || pos >= S.cells.length) return;
+    // Resolve after edits and compaction: an existing target color may absorb the old row.
+    var row = el.palette.querySelector('.pal-row[data-i="' + S.cells[pos] + '"]');
+    if (!row) return;
+    el.palette.querySelectorAll('.recolor-result').forEach(function (other) { other.classList.remove('recolor-result'); });
+    row.classList.add('recolor-result');
+    row.title = '刚修改的颜色';
+    row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    var arrow = row.querySelector('.pal-color-arrow');
+    if (arrow) arrow.focus({ preventScroll: true });
   }
 
   function renderPalette() {
     var frag = document.createDocumentFragment();
     var library = currentLibrary();
-    el.paletteCount.textContent = S.palette.length + ' 色';
+    el.paletteCount.textContent = '共使用 ' + S.palette.length + ' 色';
     // 只排列色卡显示顺序；保留底层索引供选色、画布定位和合并使用。
     var ordered = S.palette.map(function (p, i) {
       var hsl = Color.rgbToHsl(p.rgb);
@@ -638,21 +679,28 @@
       var cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = S.selected.has(i);
+      var selection = document.createElement('label'); selection.className = 'pal-select';
+      selection.title = '勾选参与合并'; selection.appendChild(cb);
       cb.addEventListener('change', function () {
         if (cb.checked) S.selected.add(i); else S.selected.delete(i);
-        el.mergeBtn.disabled = S.selected.size < 2;
+        updatePaletteActions();
       });
 
       var sw = document.createElement('span');
       sw.className = 'pal-sw';
       sw.style.background = p.hex;
       sw.title = p.code || p.name;
+      var locate = document.createElement('button'); locate.type = 'button'; locate.className = 'pal-locate';
+      locate.title = '定位颜色，再点取消';
+      locate.setAttribute('aria-label', '定位颜色 ' + (p.code || p.name));
+      locate.setAttribute('aria-pressed', 'false');
+      locate.appendChild(sw);
 
       var n = document.createElement('span');
       n.className = 'pal-n';
       n.textContent = p.count + ' 颗';
 
-      var nameWrap = document.createElement('div');
+      var nameWrap = document.createElement('span');
       nameWrap.className = 'pal-name';
       if (library && p.code) {
         nameWrap.appendChild(span(p.code, 'pal-code'));
@@ -706,28 +754,31 @@
               var positions = [];
               S.cells.forEach(function (value, pos) { if (value === i) positions.push(pos); });
               if (!S.custom.paletteHistory) S.custom.paletteHistory = [];
-              S.custom.paletteHistory.push({ type: 'recolor', edits: positions.map(function (pos) {
+              S.custom.paletteHistory.push({ type: 'recolor', sourceCell: positions[0], edits: positions.map(function (pos) {
                 return [pos, S.cellEdits.has(pos) ? S.cellEdits.get(pos) : null];
               }) });
               positions.forEach(function (pos) { S.cellEdits.set(pos, { lab: color.lab.slice(), code: color.code }); });
               close(); applyCustomAndRender();
+              revealPaletteCell(positions[0]);
               toast('已替换 ' + positions.length + ' 格颜色');
             });
             menu.appendChild(button);
           });
         });
       });
-      picker.append(sw, arrow);
-      row.appendChild(cb); row.appendChild(picker); row.appendChild(nameWrap); row.appendChild(n); row.appendChild(menu);
+      if (library && p.code) { locate.appendChild(nameWrap); picker.append(locate, arrow); }
+      else picker.append(locate, nameWrap, arrow);
+      var details = document.createElement('div'); details.className = 'pal-details';
+      details.append(picker, n);
+      row.append(selection, details, menu);
       frag.appendChild(row);
     });
     el.palette.replaceChildren(frag);
-    el.mergeBtn.disabled = true;
-    el.undoMergeBtn.disabled = S.custom.merges.length === 0 && !(S.custom.paletteHistory || []).length;
+    updatePaletteActions();
     el.undoMergeBtn.title = '撤回上一次改色或合并';
     el.undoMergeBtn.setAttribute('aria-label', '撤回上一次改色或合并');
     el.paletteHint.textContent = S.palette.length
-      ? (library ? '勾选两种及以上颜色可合并：数量多的颜色影响更大，结果匹配为最接近的库内色号，也可能是第三种色号。' : '按色系排列；改名后文字图纸实时更新，勾选两个及以上颜色可合并。')
+      ? (library ? '勾选两种及以上颜色可合并；数量多的颜色影响更大，结果匹配为最接近的库内色号，也可能是第三种色号。' : '勾选两种及以上颜色可合并；改名后文字图纸实时更新。点色块定位，再点取消。')
       : '等待识别结果。';
   }
 
@@ -1434,8 +1485,8 @@
 
   function updateLineControls() {
     el.pixelLineControls.hidden = el.pixelSampling.value !== 'balanced';
-    el.pixelDenoiseControls.hidden = el.pixelSampling.value !== 'lines';
     el.pixelLineStrengthOut.textContent = el.pixelLineStrength.value;
+    el.pixelDenoiseControls.hidden = el.pixelSampling.value !== 'lines';
   }
 
   function changeLibrary() {
@@ -1452,7 +1503,8 @@
       localStorage.setItem(LS_KEY, JSON.stringify({
         thresh: el.thresh.value, fixK: el.fixK.checked, k: el.kNum.value,
         library: el.colorLibrary.value, chartSampling: el.chartSampling.value,
-        pixelSampling: el.pixelSampling.value, pixelSamplingVersion: 3, pixelDenoise: el.pixelDenoise.checked, pixelLineStrength: +el.pixelLineStrength.value,
+        pixelSampling: el.pixelSampling.value, pixelSamplingVersion: 3, pixelLineStrength: +el.pixelLineStrength.value,
+        pixelDenoise: el.pixelDenoise.checked,
         beadSizeMm: beadSizeMm() || null,
         zoom: el.zoom.value, opts: currentOpts(),
         theme: document.documentElement.getAttribute('data-theme') || ''
@@ -1475,8 +1527,8 @@
       }
       // 已移除的取色选项回到默认效果，避免选择器出现空值。
       if (s.pixelSamplingVersion === 3 && ['balanced', 'lines'].includes(s.pixelSampling)) el.pixelSampling.value = s.pixelSampling;
-      el.pixelDenoise.checked = s.pixelDenoise === true;
       if (Number.isFinite(s.pixelLineStrength)) el.pixelLineStrength.value = Math.max(0, Math.min(100, s.pixelLineStrength));
+      el.pixelDenoise.checked = s.pixelDenoise === true;
       if (['none', 'mard221', 'mard291'].includes(s.library)) el.colorLibrary.value = s.library;
       if (s.thresh) { el.thresh.value = s.thresh; el.threshOut.textContent = s.thresh; }
       if (s.k) el.kNum.value = s.k;
@@ -1504,6 +1556,11 @@
     // Capture runs before the merge button handler, so the click creating a new
     // highlight cannot immediately dismiss it as it bubbles through the page.
     document.addEventListener('click', function (e) {
+      if (!e.target.closest('.pal-row.recolor-result')) {
+        el.palette.querySelectorAll('.recolor-result').forEach(function (row) {
+          row.classList.remove('recolor-result'); row.removeAttribute('title');
+        });
+      }
       if (!S.showMergeResult || e.target.closest('.pal-row.merge-result')) return;
       S.showMergeResult = false;
       S.mergeResultKey = null;
@@ -1516,13 +1573,13 @@
     el.mode.addEventListener('change', function () { setMode(el.mode.value); });
     el.keepRatio.addEventListener('change', function () { syncGridSize('cols'); analyze(false); });
     el.pixelGrid.addEventListener('change', renderCanvas);
+    el.pixelDenoise.addEventListener('change', function () {
+      saveSettings();
+      if (S.mode === 'pixel') analyze(false);
+    });
     el.pixelSampling.addEventListener('change', function () {
       updateLineControls(); saveSettings();
       if (S.mode === 'pixel') analyze(false);
-    });
-    el.pixelDenoise.addEventListener('change', function () {
-      saveSettings();
-      if (S.mode === 'pixel' && el.pixelSampling.value === 'lines') analyze(false);
     });
     el.pixelLineStrength.addEventListener('input', function () {
       updateLineControls(); saveSettings();
@@ -1659,6 +1716,7 @@
       } else S.custom.merges.pop();
       S.editUndo = []; S.editRedo = [];
       applyCustomAndRender();
+      if (action && action.type === 'recolor' && Number.isInteger(action.sourceCell)) revealPaletteCell(action.sourceCell);
       toast(action && action.type === 'recolor' ? '已撤回上一次改色' : '已撤回上一次颜色合并');
     });
 

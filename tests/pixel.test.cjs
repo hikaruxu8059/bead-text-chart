@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const context = vm.createContext({ window: {} });
-for (const file of ['color', 'mard-palettes', 'color-library', 'pixel-denoise', 'pixel', 'palette', 'textchart']) {
+for (const file of ['color', 'mard-palettes', 'color-library', 'pixel', 'palette', 'textchart']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/' + file + '.js'), 'utf8'), context);
 }
 const { Pixel, Palette, TextChart, ColorLibrary } = context.window;
@@ -404,62 +404,4 @@ test('像素匹配保留合并后的浅暖色，邻近肤色不突变为中性�
     const gray=ColorLibrary.match(model,ColorLibrary.builtins.gray.colors,{preserveChroma:true});
     assert.equal(gray.palette[0].rgb[0],gray.palette[0].rgb[2]);
   }
-});
-
-test('去杂色保留原版对不同底色交界的连续笔画选择，不修改原图', () => {
-  const data=new Uint8ClampedArray(64*64*4);
-  for(let y=0;y<64;y++)for(let x=0;x<64;x++){
-    const boundary=y>=20&&y<32?19:26;
-    const stroke=Math.abs(x-boundary)<=1 || ((y===20||y===31)&&x>=19&&x<=27);
-    const rgb=stroke?[25,20,20]:x<boundary?[245,230,210]:[220,160,100];
-    data.set([...rgb,255],(y*64+x)*4);
-  }
-  const raw=Pixel.sample(data,64,64,8,8,'lines');
-  const copy=data.slice(),saved=plain(raw);
-  const cleaned=context.window.PixelDenoise.clean(raw,data,64,64,8,8);
-  for(let i=0;i<raw.length;i++)if(raw.lineMask[i])assert.deepEqual(plain(cleaned[i]),plain(raw[i]));
-  assert.deepEqual(plain(raw),saved);
-  assert.deepEqual(data,copy);
-});
-
-test('线条鲜明放大原像素时保留原色及透明白底，不分配无用区域', () => {
-  const data=rgba([0,0,0,0],[255,0,0,128]);
-  const raw=Pixel.sample(data,2,1,4,2,'lines');
-  assert.deepEqual(plain(raw),[[255,255,255],[255,255,255],[255,127,127],[255,127,127],[255,255,255],[255,255,255],[255,127,127],[255,127,127]]);
-});
-
-test('柔和清晰在四种强度下逐字节兼容替换前的取样结果', () => {
-  const crypto=require('node:crypto'),data=new Uint8ClampedArray(37*43*4);
-  for(let i=0;i<37*43;i++)data.set(Math.abs(Math.floor(i/37)-(.3*(i%37)+3))<.6?[30,25,20,255]:[220+i%13,190+i%17,170+i%19,i%11===0?128:255],i*4);
-  // Recorded from the pre-region implementation, including partial alpha and fractional cell edges.
-  const expected={0:'158edcf580eeca3528d3217cd20faf9c0cceba9068ba76719d7bb921c94b1dbc',35:'05ddf5cb7df53ad0338259dcc2ed80b3be3d310db1696c802e08a7104e06acf8',65:'4e24344cbcc04381eae4cd0b59983743ad758ffdeb0bc4943bf897ffbc1c11b4',100:'672fcd9ee93dab5e8a8f804ba2597a8b31c54d52e14330309d328c79d743ed07'};
-  for(const [strength,hash] of Object.entries(expected))assert.equal(crypto.createHash('sha256').update(JSON.stringify(Pixel.sample(data,37,43,9,11,'balanced',+strength))).digest('hex'),hash);
-});
-
-test('开启去杂色后实心主体的纸张碎点不把内部切成孔洞', () => {
-  const data=new Uint8ClampedArray(96*96*4);
-  for(let y=0;y<96;y++)for(let x=0;x<96;x++){
-    const inside=((x-48)/30)**2+((y-48)/35)**2<1;
-    const speck=x>=32&&x<64&&y>=32&&y<64&&x%8>=4&&x%8<=5&&y%8>=4&&y%8<=5;
-    const v=inside&&!speck?25:235;
-    data.set([v,v,v,255],(y*96+x)*4);
-  }
-  const copy=data.slice(),raw=Pixel.sample(data,96,96,12,12,'lines');
-  const out=context.window.PixelDenoise.clean(raw,data,96,96,12,12);
-  for(let y=4;y<8;y++)for(let x=4;x<8;x++)assert.ok(out[y*12+x][0]<60,'主体内部不能由碎点生成空洞 '+x+','+y);
-  assert.deepEqual(data,copy);
-});
-
-test('可选去杂色压缩均匀底色的近似色，同时保留连续深色线与高反差圆点',()=>{
-  const data=new Uint8ClampedArray(64*64*4);
-  for(let y=0;y<64;y++)for(let x=0;x<64;x++){
-    const ink=x===25||Math.hypot(x-51,y-35)<3;
-    const noise=((x*13+y*7)%9)-4;
-    data.set(ink?[20,20,20,255]:[120+noise*2,150+noise*2,170+noise*2,255],(y*64+x)*4);
-  }
-  const raw=Pixel.sample(data,64,64,8,8,'lines'),saved=plain(raw),clean=context.window.PixelDenoise.clean(raw,data,64,64,8,8);
-  for(let i=0;i<raw.length;i++)if(raw[i][0]<50)assert.deepEqual(plain(clean[i]),plain(raw[i]));
-  const colors=a=>new Set(a.filter(c=>c[0]>50).map(c=>c.join(','))).size;
-  assert.ok(colors(clean)<colors(raw));
-  assert.deepEqual(plain(raw),saved);
 });

@@ -27,3 +27,40 @@ test('分享画布包含编号与色卡，完整尺寸受上限约束',()=>{
  }
  const l=shareLayout(52,104,2400,0);assert.equal(l.height,l.patternHeight+2*l.y);
 });
+test('A4/A3按纸张和页边距分张，完整覆盖所有格子且不改变格子实际尺寸',()=>{
+ const {printPlan}=context.window.PixelExport;
+ for(const paper of ['a4','a3'])for(const orientation of ['portrait','landscape','auto'])for(const margin of [0,5,12.5]) {
+  const cols=127,rows=113,mm=4.1,p=printPlan(cols,rows,mm,{paper,orientation,margin});assert.ok(p);
+  const paperSize=paper==='a4'?[210,297]:[297,420];
+  assert.equal(p.widthMm,paperSize[p.orientation==='portrait'?0:1]);
+  assert.equal(p.heightMm,paperSize[p.orientation==='portrait'?1:0]);
+  if(orientation!=='auto')assert.equal(p.orientation,orientation);
+  assert.equal(p.width,Math.round(p.widthMm/25.4*300));assert.equal(p.height,Math.round(p.heightMm/25.4*300));
+  assert.ok(p.width<=8192&&p.height<=8192&&p.width*p.height<=32000000);
+  const covered=new Uint8Array(cols*rows);let count=0;
+  for(let row=0;row<rows;row+=p.rows)for(let col=0;col<cols;col+=p.cols){
+   const width=Math.min(p.cols,cols-col),height=Math.min(p.rows,rows-row),s=dimensions(width,height,mm,300);
+   assert.ok(width*mm<=p.widthMm-2*margin+1e-8);assert.ok(height*mm<=p.heightMm-2*margin+1e-8);
+   assert.ok(p.inset+s.width<=p.width);assert.ok(p.inset+s.height<=p.height);
+   assert.ok(Math.abs(s.width/300*25.4-width*mm)<=25.4/600+1e-8);
+   for(let y=row;y<row+height;y++)for(let x=col;x<col+width;x++)covered[y*cols+x]++;
+   count++;
+  }
+  assert.equal(count,p.count);assert.ok(covered.every(n=>n===1));
+ }
+ assert.equal(printPlan(52,104,2.6).count,1);
+ assert.equal(printPlan(600,600,0),null);assert.equal(printPlan(2,2,1000),null);
+ assert.equal(printPlan(1,1,2,{paper:'a5'}),null);assert.equal(printPlan(1,1,2,{margin:105}),null);
+ assert.equal(printPlan(1,1,2,{margin:-1}),null);
+});
+test('自动方向使用张数较少的纸张方向，精确边界不多切一张',()=>{
+ const {printPlan}=context.window.PixelExport;
+ assert.equal(printPlan(100,50,2.6,{paper:'a4',orientation:'auto'}).orientation,'landscape');
+ assert.equal(printPlan(100,50,2.6,{paper:'a4',orientation:'auto'}).count,1);
+ for(const paper of ['a4','a3'])for(const [cols,rows,mm] of [[600,600,2.6],[1,600,2.6],[600,1,2.6],[104,185,10]]){
+  const auto=printPlan(cols,rows,mm,{paper}),portrait=printPlan(cols,rows,mm,{paper,orientation:'portrait'}),landscape=printPlan(cols,rows,mm,{paper,orientation:'landscape'});
+  assert.equal(auto.count,Math.min(portrait.count,landscape.count));
+ }
+ const exact=printPlan(80,112,2.5,{paper:'a4',orientation:'portrait',margin:5});assert.equal(exact.count,1);assert.equal(exact.cols,80);
+ assert.equal(printPlan(81,112,2.5,{paper:'a4',orientation:'portrait',margin:5}).count,2);
+});
