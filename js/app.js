@@ -475,20 +475,47 @@
     return out;
   }
 
+  function mergeCurrentPalette() {
+    var selected = Array.from(S.selected).filter(function (i) { return S.palette[i] && S.palette[i].count > 0; });
+    if (selected.length < 2) return null;
+    var sum = [0, 0, 0], total = 0;
+    selected.forEach(function (i) {
+      var p = S.palette[i]; total += p.count;
+      for (var channel = 0; channel < 3; channel++) sum[channel] += p.rgb[channel] * p.count;
+    });
+    var rgb = sum.map(function (v) { return Math.round(v / total); });
+    var target = { rgb: rgb, lab: Color.rgbToLab(rgb), hex: Color.hex(rgb), count: total, name: '' };
+    var library = currentLibrary();
+    if (library) target = ColorLibrary.match({ palette: [target], cells: new Int16Array([0]) }, library.colors).palette[0];
+    var positions = [];
+    S.cells.forEach(function (index, pos) { if (S.selected.has(index)) positions.push(pos); });
+    if (!positions.length) return null;
+    if (!S.custom.paletteHistory) S.custom.paletteHistory = [];
+    S.custom.paletteHistory.push({ type: 'merge', sourceCell: positions[0], edits: positions.map(function (pos) {
+      return [pos, S.cellEdits.has(pos) ? S.cellEdits.get(pos) : null];
+    }) });
+    // Newer merges overwrite earlier recolors only for the currently selected cells.
+    positions.forEach(function (pos) {
+      S.cellEdits.set(pos, { lab: target.lab.slice(), code: target.code, rgb: target.rgb.slice() });
+    });
+    return { count: selected.length, sourceCell: positions[0] };
+  }
+
   /** 合并 / 改名不需要重新采样，只在聚类结果上做后处理 */
   function applyCustomAndRender() {
     if (!S.base) return;
     var library = currentLibrary();
     var out = applyDisplayedMerges(S.base, S.custom, library);
     S.mergeResultKey = null;
-    var latestMerge = S.custom.merges[S.custom.merges.length - 1];
-    if (S.showMergeResult && latestMerge && Number.isInteger(latestMerge.sourceCell)) {
-      var result = out.palette[out.cells[latestMerge.sourceCell]];
-      if (result) S.mergeResultKey = result.code || result.hex;
-    }
     S.palette = out.palette.map(function (p) { return Object.assign({}, p); });
     S.cells = new Int16Array(out.cells);
     applyCellEdits();
+    var history = S.custom.paletteHistory || [], latestAction = history[history.length - 1];
+    var latestMerge = latestAction ? (latestAction.type === 'merge' ? latestAction : null) : S.custom.merges[S.custom.merges.length - 1];
+    if (S.showMergeResult && latestMerge && Number.isInteger(latestMerge.sourceCell)) {
+      var result = S.palette[S.cells[latestMerge.sourceCell]];
+      if (result) S.mergeResultKey = result.code || result.hex;
+    }
     if (library) S.palette.forEach(function (p) {
       var named = S.custom.names.find(function (n) { return n.code === p.code; });
       if (named) p.name = named.name;
@@ -525,6 +552,16 @@
           S.cells[pos] = index;
           return;
         }
+      }
+      if (!library && edit.rgb) {
+        var hex = Color.hex(edit.rgb);
+        var exact = S.palette.findIndex(function (p) { return p.hex === hex; });
+        if (exact < 0) {
+          exact = S.palette.length;
+          S.palette.push({ rgb: edit.rgb.slice(), lab: Color.rgbToLab(edit.rgb), hex: hex, count: 0, name: '' });
+        }
+        S.cells[pos] = exact;
+        return;
       }
       var best = 0, dist = Infinity;
       for (var i = 0; i < S.palette.length; i++) {
@@ -757,7 +794,7 @@
               S.custom.paletteHistory.push({ type: 'recolor', sourceCell: positions[0], edits: positions.map(function (pos) {
                 return [pos, S.cellEdits.has(pos) ? S.cellEdits.get(pos) : null];
               }) });
-              positions.forEach(function (pos) { S.cellEdits.set(pos, { lab: color.lab.slice(), code: color.code }); });
+              positions.forEach(function (pos) { S.cellEdits.set(pos, { lab: color.lab.slice(), code: color.code, rgb: color.rgb.slice() }); });
               close(); applyCustomAndRender();
               revealPaletteCell(positions[0]);
               toast('已替换 ' + positions.length + ' 格颜色');
@@ -1218,7 +1255,7 @@
     if (!changed) { renderCellEditor(); return; }
     rememberCellEdit();
     S.selectedCells.forEach(function (pos) {
-      S.cellEdits.set(pos, { lab: color.lab.slice(), code: color.code });
+      S.cellEdits.set(pos, { lab: color.lab.slice(), code: color.code, rgb: color.rgb.slice() });
     });
     applyCustomAndRender();
     toast('已修改 ' + S.selectedCells.size + ' 格的颜色');
@@ -1692,23 +1729,20 @@
     });
     el.mergeBtn.addEventListener('click', function () {
       if (S.selected.size < 2) return;
-      var keys = [];
-      S.selected.forEach(function (i) { if (S.palette[i]) keys.push(S.palette[i].code || S.palette[i].hex); });
-      var sourceCell = S.cells.findIndex(function (index) { return S.selected.has(index); });
-      if (!S.custom.paletteHistory) S.custom.paletteHistory = [];
-      S.custom.paletteHistory.push({ type: 'merge' });
-      S.custom.merges.push({ keys: keys, sourceCell: sourceCell });
+      ditherEditor.cancel();
+      var merged = mergeCurrentPalette();
+      if (!merged) return;
       S.showMergeResult = true;
       applyCustomAndRender();
       var resultRow = el.palette.querySelector('.merge-result');
       if (resultRow) resultRow.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      toast('已合并 ' + keys.length + ' 种颜色');
+      toast('已合并 ' + merged.count + ' 种颜色');
     });
     el.undoMergeBtn.addEventListener('click', function () {
       var history = S.custom.paletteHistory || [], action = history.pop();
       if (!action && !S.custom.merges.length) return;
       ditherEditor.cancel();
-      if (action && action.type === 'recolor') {
+      if (action && action.edits) {
         action.edits.forEach(function (entry) {
           if (entry[1] === null) S.cellEdits.delete(entry[0]);
           else S.cellEdits.set(entry[0], entry[1]);
@@ -1716,7 +1750,7 @@
       } else S.custom.merges.pop();
       S.editUndo = []; S.editRedo = [];
       applyCustomAndRender();
-      if (action && action.type === 'recolor' && Number.isInteger(action.sourceCell)) revealPaletteCell(action.sourceCell);
+      if (action && Number.isInteger(action.sourceCell)) revealPaletteCell(action.sourceCell);
       toast(action && action.type === 'recolor' ? '已撤回上一次改色' : '已撤回上一次颜色合并');
     });
 

@@ -87,7 +87,7 @@
     function apply() {
       if (!active || !preview.size) return;
       api.remember();
-      preview.forEach(function (p, pos) { state.cellEdits.set(pos, { lab: p.lab.slice(), code: p.code }); });
+      preview.forEach(function (p, pos) { state.cellEdits.set(pos, { lab: p.lab.slice(), code: p.code, rgb: p.rgb.slice() }); });
       active = false; preview.clear(); stopPicking();
       status.textContent = '已应用交错配色，可撤销或复原。';
       update(); api.apply();
