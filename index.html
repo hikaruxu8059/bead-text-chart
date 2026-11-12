@@ -409,13 +409,13 @@
   <div class="field" id="exportPhysicalFields" hidden>
     <label for="exportBeadMm">每格大小（mm）</label>
     <input id="exportBeadMm" type="number" min="0.01" step="any" placeholder="填写实际格子大小" inputmode="decimal">
-    <label for="exportPaper">打印纸张</label>
+    <label for="exportPaper">分张参考纸张</label>
     <select id="exportPaper"><option value="a4">A4（210 × 297 mm）</option><option value="a3">A3（297 × 420 mm）</option></select>
     <label for="exportOrientation">纸张方向</label>
     <select id="exportOrientation"><option value="auto">自动（减少张数）</option><option value="portrait">纵向</option><option value="landscape">横向</option></select>
-    <label for="exportMargin">页边距（mm）</label>
+    <label for="exportMargin">打印预留（mm，仅用于分张）</label>
     <input id="exportMargin" type="number" min="0" step="any" value="5" inputmode="decimal">
-    <p class="hint">沿完整格子自动分张，每张为所选纸张大小，多张打包下载 PNG。裁去图案周围空白后按行列范围拼接。打印请选择相同纸张和方向、实际大小／100%，不要缩放至纸张。页边距须符合打印机的可打印范围。</p>
+    <p class="hint">A3/A4 和打印预留仅用于计算分张范围；沿完整格子切分，图片只含图案，不添加白边。多张打包下载 PNG，按行列范围拼接。打印请选择实际大小／100%，不要缩放至纸张。</p>
   </div>
   <p id="exportDimensions" class="export-dimensions" aria-live="polite"></p>
   <div class="export-options">

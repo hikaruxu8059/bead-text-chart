@@ -7,7 +7,7 @@
   function fits(width, height) {
     return Number.isInteger(width) && Number.isInteger(height) && width >= 1 && height >= 1 && width <= 8192 && height <= 8192 && width * height <= 32000000;
   }
-  // Paper-sized sheets, with complete cells inside the printable margins.
+  // Paper dimensions only cap the tile size; exported PNGs contain the pattern alone.
   function printPlan(cols, rows, mm, options) {
     options = options || {};
     var papers = { a4: [210, 297], a3: [297, 420] };
@@ -24,10 +24,8 @@
       if (c < 1 || r < 1) return;
       var across = Math.ceil(cols / c), down = Math.ceil(rows / r), count = across * down;
       if (!best || count < best.count || (count === best.count && c * r > best.cols * best.rows)) {
-        var pixels = dimensions(w, h, 1, 300);
         best = { cols: c, rows: r, across: across, down: down, count: count,
-          paper: paper, orientation: direction, margin: margin, widthMm: w, heightMm: h,
-          width: pixels.width, height: pixels.height, inset: Math.round(margin * 300 / 25.4) };
+          paper: paper, orientation: direction, margin: margin, widthMm: w, heightMm: h };
       }
     });
     return best;
@@ -205,7 +203,7 @@
       if (!exporting) submit.textContent = physical && plan && plan.count > 1 ? '下载 ' + plan.count + ' 张 PNG（ZIP）' : '下载 PNG';
       $('exportSizeError').hidden = valid;
       $('exportSizeError').textContent = valid ? '' : missingWatermark ? '请输入水印名称。' : physical && !validMm ? '请填写有效的每格大小（mm）。' : physical ? '每格大小或页边距过大，所选纸张放不下完整格子，请调整后重试。' : '导出超过上限：单边最多 8192px，总计最多 3200 万像素，请调整导出尺寸或关闭色卡。';
-      $('exportDimensions').textContent = !valid ? '' : physical ? '成品宽 ' + Number((state.cols * Number(mm.value)).toFixed(3)) + ' × 高 ' + Number((state.rows * Number(mm.value)).toFixed(3)) + ' mm · 300 DPI' + '；' + plan.paper.toUpperCase() + ' ' + (plan.orientation === 'portrait' ? '纵向' : '横向') + ' ' + plan.widthMm + ' × ' + plan.heightMm + ' mm，页边距 ' + plan.margin + ' mm；共 ' + plan.count + ' 张（横向 ' + plan.across + ' × 纵向 ' + plan.down + '），按行列范围拼接' : '图片尺寸：' + s.width + ' × ' + s.height + ' px';
+      $('exportDimensions').textContent = !valid ? '' : physical ? '成品宽 ' + Number((state.cols * Number(mm.value)).toFixed(3)) + ' × 高 ' + Number((state.rows * Number(mm.value)).toFixed(3)) + ' mm · 300 DPI' + '；分张参考 ' + plan.paper.toUpperCase() + ' ' + (plan.orientation === 'portrait' ? '纵向' : '横向') + ' ' + plan.widthMm + ' × ' + plan.heightMm + ' mm，打印预留 ' + plan.margin + ' mm；共 ' + plan.count + ' 张（横向 ' + plan.across + ' × 纵向 ' + plan.down + '），导出仅含图案，按行列范围拼接' : '图片尺寸：' + s.width + ' × ' + s.height + ' px';
     }
     mode.addEventListener('change', update);
     quality.addEventListener('change', update);
@@ -245,14 +243,6 @@
           submit.textContent = '正在生成 ' + (++index) + ' / ' + plan.count + '…';
           await new Promise(function (resolve) { setTimeout(resolve, 0); });
           canvas = patternSheet(source, model, s, tile, includeGrid, includeLabels);
-          if (density) {
-            var printCanvas = document.createElement('canvas'); printCanvas.width = plan.width; printCanvas.height = plan.height;
-            var printCtx = printCanvas.getContext('2d');
-            printCtx.fillStyle = '#fff'; printCtx.fillRect(0, 0, plan.width, plan.height);
-            printCtx.drawImage(canvas, plan.inset, plan.inset);
-            canvas.width = canvas.height = 1;
-            canvas = printCanvas;
-          }
           if (sheetLayout) {
             var pattern = canvas;
             canvas = shareSheet(pattern, model, sheetLayout, includePalette, watermarkValue);

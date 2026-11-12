@@ -35,13 +35,13 @@ test('A4/A3按纸张和页边距分张，完整覆盖所有格子且不改变格
   assert.equal(p.widthMm,paperSize[p.orientation==='portrait'?0:1]);
   assert.equal(p.heightMm,paperSize[p.orientation==='portrait'?1:0]);
   if(orientation!=='auto')assert.equal(p.orientation,orientation);
-  assert.equal(p.width,Math.round(p.widthMm/25.4*300));assert.equal(p.height,Math.round(p.heightMm/25.4*300));
-  assert.ok(p.width<=8192&&p.height<=8192&&p.width*p.height<=32000000);
   const covered=new Uint8Array(cols*rows);let count=0;
   for(let row=0;row<rows;row+=p.rows)for(let col=0;col<cols;col+=p.cols){
    const width=Math.min(p.cols,cols-col),height=Math.min(p.rows,rows-row),s=dimensions(width,height,mm,300);
    assert.ok(width*mm<=p.widthMm-2*margin+1e-8);assert.ok(height*mm<=p.heightMm-2*margin+1e-8);
-   assert.ok(p.inset+s.width<=p.width);assert.ok(p.inset+s.height<=p.height);
+   const paperPixels=dimensions(p.widthMm,p.heightMm,1,300);
+   assert.ok(s.width<=paperPixels.width&&s.height<=paperPixels.height);
+   assert.ok(s.width<=8192&&s.height<=8192&&s.width*s.height<=32000000);
    assert.ok(Math.abs(s.width/300*25.4-width*mm)<=25.4/600+1e-8);
    for(let y=row;y<row+height;y++)for(let x=col;x<col+width;x++)covered[y*cols+x]++;
    count++;
