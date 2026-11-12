@@ -35,8 +35,15 @@
     return { name: value.name.trim(), colors: colors };
   }
 
+  function automaticColors(library) {
+    var colors = library.filter(function (p) { return p.autoMatch !== false; });
+    if (!colors.length) throw new Error('色库中没有可自动匹配的颜色');
+    return colors;
+  }
+
   // 先逐格量化到有限色板，不先聚类；同一原始 RGB 只计算一次最近色。
   function quantize(raw, library) {
+    if (library && library.length) library = automaticColors(library);
     var cache = new Map();
     return raw.map(function (rgb) {
       if (!library || !library.length) {
@@ -57,6 +64,7 @@
   }
 
   function match(model, library, options) {
+    library = automaticColors(library);
     var palette = [], byCode = new Map(), remap = [];
     model.palette.forEach(function (p, i) {
       var best = library[0], dist = Infinity;
@@ -88,7 +96,11 @@
   Object.keys(global.MardPalettes || {}).forEach(function (id) {
     var source = global.MardPalettes[id];
     builtins[id] = { name: source.name, colors: source.colors.map(function (p) {
-      var color = entry(p[0], '', p[1]); color.name = C.autoName(color.rgb); return color;
+      var color = entry(p[0], '', p[1]);
+      color.name = C.autoName(color.rgb);
+      // Keep special series in manual pickers, but never select them automatically.
+      color.autoMatch = /^[A-HM]\d+$/.test(color.code);
+      return color;
     }) };
   });
 
